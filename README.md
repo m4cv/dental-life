@@ -3,8 +3,17 @@
 A mobile-first 3D life simulation of a fourth-year dental student living in Yemen.
 Runs in the phone's browser from a web link — no install, no second device.
 
-**Current status: Stage 2 — Main Character (v0.2.0).**
-The character can be inspected (idle / walk / run, four camera angles) but not yet controlled; touch controls are Stage 3. See `docs/ARCHITECTURE.md` for the plan.
+**Current status: Stage 3 — Mobile Touch Controls (v0.3.0).**
+Tap **New Game** and the character can be walked around the placeholder courtyard with a floating joystick (left thumb), a look-around drag (right thumb), pinch-to-zoom and a Run toggle, with a third-person camera that does not clip through walls. The environment is still a stand-in until Stage 4. The Stage 2 character inspector (idle / walk / run, four camera angles) is kept at `?preview=1`. See `docs/ARCHITECTURE.md` for the plan.
+
+### Controls
+| Input | Touch | Keyboard / mouse |
+| --- | --- | --- |
+| Move | Left half of the screen: touch and drag (the joystick appears under your thumb) | WASD or arrow keys |
+| Look | Right half of the screen: drag | Drag with the mouse |
+| Zoom | Pinch with two fingers on the right half | Mouse wheel |
+| Run | **Run** button (toggle) | Hold Shift |
+| Re-centre camera behind her | Round arrow button | C |
 
 ## Run it
 

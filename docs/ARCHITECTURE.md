@@ -9,12 +9,12 @@ small, typed interfaces. Folders marked *(empty)* hold only a `.gitkeep` until t
 | --- | --- | --- |
 | `config/` | Constants: game info, graphics profiles, colour palette | Stage 1 |
 | `engine/` | WebGL renderer (`GameCanvas`), WebGL2 detection, mobile touch guards | Stage 1 |
-| `state/` | Zustand stores. `useAppStore` = which screen is showing + FPS | Stage 1 (grows each stage) |
-| `world/` | Scene composition. `CourtyardBackdrop` (stand-in courtyard), `CharacterShowcase` (Stage 2 preview scene), `TestScene` (Stage 1 scene, kept) | Stages 1–2 → replaced Stage 4+ |
+| `state/` | Zustand stores. `useAppStore` = which screen is showing + FPS; `useControlStore` = Run toggle; `usePlayerStore` = throttled position / speed read-out | Stage 1 (grows each stage) |
+| `world/` | Scene composition. `PlayableScene` (Stage 3: player rig + follow camera), `courtyardLayout.ts` (collider data), `CourtyardBackdrop` (stand-in courtyard), `CharacterShowcase` (Stage 2 preview scene), `TestScene` (Stage 1 scene, kept) | Stages 1–3 → replaced Stage 4+ |
 | `ui/` | React overlay UI: screens (`MainMenu`, `GameScreen`, …) and components | Stage 1 → ongoing |
 | `character/` + `character/animations/` | Player model (`PlayerCharacter`), shapes (`charShapes.ts`), materials/geometry (`assets.ts`), locomotion maths (`animations/pose.ts`) | Stage 2 |
-| `camera/` | Third-person follow camera, collision avoidance | Stage 3 *(empty)* |
-| `controls/` | Virtual joystick, touch camera, interact / run buttons | Stage 3 *(empty)* |
+| `camera/` | `followCamera.ts`: orbit rig (yaw / pitch / distance) and the spring-arm that pulls the camera in front of walls | Stage 3 |
+| `controls/` | `movement.ts` (pure walking + collision maths), `input.ts` (mutable input state), `TouchControls.tsx` (joystick, look drag, pinch, Run / Recentre buttons, keyboard) | Stage 3 |
 | `home/` | Interior and morning routine | Stage 4 *(empty)* |
 | `streets/` | Neighbourhood and the home-to-university route | Stages 5 & 7 *(empty)* |
 | `vehicle/` | Car model and arcade driving | Stage 6 *(empty)* |
@@ -32,9 +32,11 @@ small, typed interfaces. Folders marked *(empty)* hold only a `.gitkeep` until t
 main.tsx → App ──(screen = menu)──▶ MainMenu
               └─(screen = game)──▶ [WebGL2 ok?] ─▶ lazy GameScreen
                                                     ├─ GameCanvas (R3F <Canvas>, graphics profile)
-                                                    │    ├─ <CharacterShowcase /> (world/): lights, backdrop, <PlayerCharacter />, preview camera
+                                                    │    ├─ <PlayableScene /> (world/): lights, backdrop, <PlayerRig> (character + follow camera)
+                                                    │    │    (with ?preview=1: <CharacterShowcase /> instead)
                                                     │    └─ <FpsMeter />
-                                                    └─ HUD overlay (DOM): Menu button, Diagnostics, CharacterPreviewPanel
+                                                    └─ HUD overlay (DOM): TouchControls, Menu button, Diagnostics
+                                                         (with ?preview=1: CharacterPreviewPanel instead of TouchControls)
 ```
 
 * 3D lives inside `<GameCanvas>`; HUD / menus are ordinary DOM on top of it.
@@ -71,7 +73,20 @@ main.tsx → App ──(screen = menu)──▶ MainMenu
 * **Face:** the eyes are 3D (eyeball, textured iris cap, glints, a morph-driven eyelid that rests over the
   top of the iris and closes on blink, tapered eyeliner). Blush, eyeshadow, brows and lips are painted on a thin
   skin-shaped sheet (`facePatchMesh` + `faceTexture` in `assets.ts`). Eye and face proportions are in `charShapes.ts` (`EYE`, `FACE_PATCH`).
-* Controllers (Stage 3) only need `<PlayerCharacter speed={…} position={…} rotationY={…} />`.
-* `npm test` runs `scripts/test-pose.mjs` and `scripts/test-shapes.mjs` on plain Node.
+* The controller drives it with `<PlayerCharacter speed={…} position={…} rotationY={…} />`; `speed` may be a number or a `{ current }` ref so the rig can update it every frame without re-rendering.
+* `npm test` runs `scripts/test-pose.mjs`, `scripts/test-shapes.mjs` and `scripts/test-controls.mjs` on plain Node.
+* The coat is two pieces (torso and a hem that swings with the hips). Each continues a few centimetres past their seam, a little smaller (`tuckCoatMesh`), so the hem can tilt while running without showing a hole.
 * Colours come from the reference photos; **trousers and shoes are not visible in them** and are a
   neutral choice.
+
+## Controls (Stage 3)
+
+* **Conventions.** The ground plane is (x, z). The camera yaw is the compass heading: forward = (sin yaw, cos yaw), right = (−cos yaw, sin yaw). Stick input is x = right, y = forward, and is turned into a world direction relative to the camera (`stickToWorld`). The character's `heading` is a rotation about +y.
+* **Input is not React state.** `controls/input.ts` is a mutable object written by pointer / key events and read once per frame, so touching the screen never re-renders anything. The Run toggle is the one Zustand value because the button has to light up.
+* **One frame loop.** `PlayerRig` has the only `useFrame`, so the order is fixed: look / recentre → `stepPlayer` → move the character → move the sun (its shadow box follows her) → spring-arm camera → throttled read-out.
+* **Movement** (`controls/movement.ts`, pure and unit-tested). Dead-zone 0.12 with a smooth ramp, acceleration 9 and braking 14 m/s², the character turns toward her motion at up to 12 rad/s, walk 1.45 / run 3.6 m/s. Time is sub-stepped at 1/30 s and one frame is capped at 0.5 s, so slow phones move at the same real speed as fast ones. Speed is measured from the actual displacement after collisions, so pushing into a wall brings the walk animation to a stop.
+* **Collision.** Axis-aligned boxes and circles with a height, a 0.28 m player radius, iterative push-out (slides along walls) and a world boundary. The courtyard's colliders live in `world/courtyardLayout.ts`; later stages add their own lists. Rapier is still deliberately not used.
+* **Camera** (`camera/followCamera.ts`). Orbit around a pivot 1.45 m above the ground: default pitch 0.26 rad (−0.05 … 1.15), distance 4.6 m (2.2 … 9). The spring-arm marches from the pivot outwards and stops at a tall collider or just above the floor; the arm shortens instantly and lengthens smoothly. Dragging right turns the view left, dragging down tilts it up, spreading two fingers zooms in.
+* **Touch UI** (`controls/TouchControls.tsx`). Pointer events on one full-screen layer with `touch-action: none`. The floating joystick (128 px base, 56 px travel) appears wherever the left thumb lands; the right half looks, and two fingers on the right half pinch. Buttons are 64 px (Run) and 48 px (Recentre), stay out of the stick's way and are excluded from the look drag. A hint pill fades after 9 s or the first touch.
+* **Testing.** `scripts/test-controls.mjs` (about 50 checks: shaping, camera-relative direction, acceleration, turning, frame-rate independence at 120 / 60 / 20 FPS, collisions, camera rig). `scripts/smoke-test.mjs` drives the real page with synthetic multi-touch (CDP `Input.dispatchTouchEvent`) in headless Chrome and checks walking, running, wall collision, camera drag, recentre, pinch zoom, no page scroll, keyboard fallback and new-game reset.
+* **Preview.** `?preview=1` opens the Stage 2 character inspector instead of the playable scene.
