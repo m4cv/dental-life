@@ -632,7 +632,7 @@ export function irisCapMesh(rings = 6, segs = 24): MeshData {
       const a1 = r * segs + k1
       const b0 = (r + 1) * segs + k
       const b1 = (r + 1) * segs + k1
-      indices.push(a0, a1, b1, a0, b1, b0)
+      indices.push(a0, b1, a1, a0, b0, b1)
     }
   }
   return { positions, indices, uvs, normals }

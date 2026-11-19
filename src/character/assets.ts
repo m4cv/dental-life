@@ -341,26 +341,26 @@ function faceTexture() {
     {
       const y0 = -0.0535
       const upper: [number, number][] = [
-        [-0.0245, y0 + 0.0016], [-0.0185, y0 + 0.0062], [-0.0105, y0 + 0.0084], [-0.004, y0 + 0.0068], [0, y0 + 0.0062],
-        [0.004, y0 + 0.0068], [0.0105, y0 + 0.0084], [0.0185, y0 + 0.0062], [0.0245, y0 + 0.0016],
+        [-0.0245, y0 + 0.0026], [-0.0185, y0 + 0.0066], [-0.0105, y0 + 0.0084], [-0.004, y0 + 0.0068], [0, y0 + 0.0062],
+        [0.004, y0 + 0.0068], [0.0105, y0 + 0.0084], [0.0185, y0 + 0.0066], [0.0245, y0 + 0.0026],
         [0.012, y0 + 0.0004], [0, y0 + 0.0001], [-0.012, y0 + 0.0004],
       ]
       const lower: [number, number][] = [
-        [-0.0245, y0 + 0.0016], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0016],
-        [0.02, y0 - 0.003], [0.0125, y0 - 0.0078], [0, y0 - 0.0098], [-0.0125, y0 - 0.0078], [-0.02, y0 - 0.003],
+        [-0.0245, y0 + 0.0026], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0026],
+        [0.02, y0 - 0.0026], [0.0125, y0 - 0.0078], [0, y0 - 0.0098], [-0.0125, y0 - 0.0078], [-0.02, y0 - 0.0026],
       ]
       ctx.save()
-      ctx.shadowColor = 'rgba(160,60,84,0.55)'
+      ctx.shadowColor = 'rgba(190,90,110,0.5)'
       ctx.shadowBlur = 3
       let g = ctx.createLinearGradient(0, Y(y0 + 0.0085), 0, Y(y0))
-      g.addColorStop(0, '#b45c6b')
-      g.addColorStop(1, '#9c4556')
+      g.addColorStop(0, '#c0697a')
+      g.addColorStop(1, '#a9505f')
       ctx.fillStyle = g
       smooth(upper, true)
       ctx.fill()
       g = ctx.createLinearGradient(0, Y(y0), 0, Y(y0 - 0.01))
-      g.addColorStop(0, '#bf6177')
-      g.addColorStop(1, '#cf7a8d')
+      g.addColorStop(0, '#cc6e84')
+      g.addColorStop(1, '#df8a9d')
       ctx.fillStyle = g
       smooth(lower, true)
       ctx.fill()
@@ -370,7 +370,7 @@ function faceTexture() {
       ctx.lineCap = 'round'
       ctx.strokeStyle = 'rgba(100,38,52,0.85)'
       ctx.lineWidth = 1.5
-      smooth([[-0.0245, y0 + 0.0016], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0016]], false)
+      smooth([[-0.0245, y0 + 0.0026], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0026]], false)
       ctx.stroke()
       ctx.restore()
       glow(0, y0 - 0.0052, 0.0075, 0.0018, '255,255,255', 0.3)

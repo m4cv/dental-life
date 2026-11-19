@@ -84,13 +84,13 @@ function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<G
       <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} hi />
       {/* painted detail: blush, eyeshadow, brows, lips */}
       <mesh geometry={geo.facePatch} material={mat.faceArt} renderOrder={2} />
-      {/* nose: a short soft bridge, rounded tip, wings and nostrils */}
-      <Ell mat={mat.skin} p={[0, -0.006, skinZ(0, -0.006)]} s={[0.0038, 0.0085, 0.0032]} shadow={false} />
-      <Ell mat={mat.skin} p={[0, -0.0242, skinZ(0, -0.0242) + 0.0026]} s={[0.0082, 0.0072, 0.0082]} shadow={false} />
+      {/* nose: a low soft bridge blending into a small rounded tip, with wings and nostrils */}
+      <Ell mat={mat.skin} p={[0, -0.0115, skinZ(0, -0.0115) - 0.0003]} s={[0.0032, 0.0125, 0.002]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.0238, skinZ(0, -0.0238) + 0.002]} s={[0.007, 0.006, 0.0066]} shadow={false} />
       {[1, -1].map((k) => (
         <group key={k}>
-          <Ell mat={mat.skin} p={[k * 0.0075, -0.0255, skinZ(0.0075, -0.0255) + 0.0004]} s={[0.005, 0.0045, 0.0048]} shadow={false} />
-          <Ell mat={mat.nostril} p={[k * 0.0042, -0.03, skinZ(0.0042, -0.03) + 0.003]} s={[0.0019, 0.0012, 0.0016]} shadow={false} />
+          <Ell mat={mat.skin} p={[k * 0.0066, -0.0252, skinZ(0.0066, -0.0252) + 0.0004]} s={[0.0042, 0.0038, 0.004]} shadow={false} />
+          <Ell mat={mat.nostril} p={[k * 0.0038, -0.0292, skinZ(0.0038, -0.0292) + 0.0024]} s={[0.0016, 0.001, 0.0013]} shadow={false} />
         </group>
       ))}
       <Eye side={1} lidRef={lidL} />
@@ -268,7 +268,8 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
     shoulderR.current?.rotation.set(-pose.armR.pitch, 0, -pose.armR.abduct)
     elbowR.current?.rotation.set(-pose.armR.elbow, 0, 0)
 
-    const lid = Math.max(pose.blink, 0.001)
+    // The upper lid always rests over the top of the eye a little (a relaxed, natural look).
+    const lid = Math.max(pose.blink, 0.13)
     lidL.current?.scale.set(1, lid, 1)
     lidR.current?.scale.set(1, lid, 1)
   })

@@ -171,6 +171,15 @@ check('skin sits inside the shell at the rim', skinZ(0.04, 0.05) < shellZ(0.04, 
   let uvOK = true
   for (let i = 0; i < cap.uvs.length; i += 2) if (Math.hypot(cap.uvs[i] - 0.5, cap.uvs[i + 1] - 0.5) > 0.5001) uvOK = false
   check('iris uvs stay inside the disc', uvOK)
+  let front = 0, tris = 0
+  for (let q = 0; q < cap.indices.length; q += 3) {
+    const [i, j, k] = [cap.indices[q], cap.indices[q + 1], cap.indices[q + 2]]
+    const P = (n) => cap.positions.slice(n * 3, n * 3 + 3)
+    const [A, B, C] = [P(i), P(j), P(k)]
+    const nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0])
+    if (Math.abs(nz) > 1e-15) { tris++; if (nz > 0) front++ }
+  }
+  check('iris cap triangles face the front (+z)', front === tris && tris > 100, `${front}/${tris}`)
   check('iris fits inside the visible eye opening', EYE.irisR < EYE.b * Math.sqrt(1 - (0.002 / EYE.c) ** 2) * 0.95)
 }
 {
