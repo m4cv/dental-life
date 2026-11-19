@@ -1,10 +1,22 @@
 import { useEffect, useState } from 'react'
 import { ROUTINE_STEPS, formatClock } from '@/home/routine'
+import { usePlayerStore } from '@/state/usePlayerStore'
 import { usePromptStore } from '@/state/usePromptStore'
 import { useRoutineStore } from '@/state/useRoutineStore'
+import { ZONE_NAMES, zoneAt } from '@/street/streetLayout'
+
+/** Where she is, by name (home, yard, lane, Ninety Street). Reads the 4 Hz position the rig publishes. */
+function PlaceChip() {
+  const zone = usePlayerStore((s) => zoneAt(s.x, s.z))
+  return (
+    <div data-testid="place" data-zone={zone} className="rounded-full bg-black/45 px-3 py-1 text-sm text-white backdrop-blur">
+      {ZONE_NAMES[zone]}
+    </div>
+  )
+}
 
 /** Morning checklist, clock, a short message after each step and a progress bar while she acts. */
-export function RoutineHud() {
+export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
   const routine = useRoutineStore((s) => s.routine)
   const toast = useRoutineStore((s) => s.toast)
   const busy = usePromptStore((s) => s.busy)
@@ -22,10 +34,11 @@ export function RoutineHud() {
 
   return (
     <>
-      <div className="hud-top-safe pointer-events-none absolute inset-x-0 top-0 flex justify-center">
+      <div className="hud-top-safe pointer-events-none absolute inset-x-0 top-0 flex justify-center gap-2">
         <div data-testid="clock" className="rounded-full bg-black/45 px-4 py-1 font-mono text-sm text-white backdrop-blur">
           ☀ {formatClock(routine.minutes)}
         </div>
+        {showPlace && <PlaceChip />}
       </div>
 
       <ul

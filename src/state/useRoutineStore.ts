@@ -15,6 +15,8 @@ interface RoutineStore {
   reset: () => void
   /** Called when an action at `spot` has finished. */
   finish: (spot: Spot['id']) => void
+  /** Testing aid (?routine=done): the whole morning already done and the front door open. */
+  skipToDoor: () => void
 }
 
 let toastId = 0
@@ -24,10 +26,14 @@ export const useRoutineStore = create<RoutineStore>()((set, get) => ({
   routine: initialRoutine(),
   toast: null,
   reset: () => set({ routine: initialRoutine(), toast: null }),
+  skipToDoor: () => {
+    const all = ROUTINE_STEPS.reduce((r, s) => completeStep(r, s.id), initialRoutine())
+    set({ routine: openDoor(all), toast: null })
+  },
   finish: (spot) => {
     const { routine } = get()
     if (spot === 'door') {
-      set({ routine: openDoor(routine), toast: toast('The door is open. The street arrives in the next stage.') })
+      set({ routine: openDoor(routine), toast: toast('The door is open. The neighbourhood is waiting.') })
       return
     }
     const next = completeStep(routine, spot)

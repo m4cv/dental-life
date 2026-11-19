@@ -435,7 +435,7 @@ printJpeg('sheet3', (await contactSheet([menuShot, shotStart, shotWalk, shotRun,
 // Stage 4: the home. Walk through the rooms with the on-screen stick, do the morning routine
 // step by step, then leave through the front door.
 // =============================================================================================
-console.log('\n--- Stage 4: the home (844×390) ---')
+console.log('\n--- Stage 4: the home alone (?scene=home, 844×390) ---')
 const context4 = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
 const p4 = await context4.newPage()
 p4.on('console', (m) => {
@@ -456,8 +456,10 @@ const read4 = async () => {
   return m ? { x: +m[1], z: +m[2], speed: +m[3], cam: +m[4], dist: +m[5], text } : null
 }
 const fmt4 = (d) => (d ? `x ${d.x} z ${d.z} cam ${d.cam}°` : 'no read-out')
-const openHome = async (query = '') => {
-  await p4.goto(`${URL}${query}`)
+/** Opens a scene (default: the home alone, ?scene=home) with extra query parameters, starts a game and waits for the read-out. */
+const openHome = async (query = '', scene = 'home') => {
+  const qs = [scene ? `scene=${scene}` : '', query.replace(/^\?/, '')].filter(Boolean).join('&')
+  await p4.goto(`${URL}${qs ? '?' + qs : ''}`)
   await p4.getByRole('heading', { name: 'Dental Life' }).waitFor()
   await p4.getByRole('button', { name: 'New Game' }).tap()
   await p4.locator('canvas').waitFor({ timeout: 30000 })
@@ -612,7 +614,7 @@ const inside4 = (r) => !!r && r.x >= 0 && r.y >= 0 && r.x + r.width <= W && r.y 
 
 // ---- start: the bedroom ----
 const spawn4 = await openHome()
-check('the home is the default scene: the routine checklist is on screen', await p4.getByTestId('routine-hud').isVisible())
+check('the home scene (?scene=home) shows the routine checklist', await p4.getByTestId('routine-hud').isVisible())
 check('she starts in the bedroom (x 4.55, z -4.7) with the camera facing west', !!spawn4 && Math.abs(spawn4.x - 4.55) < 0.3 && Math.abs(spawn4.z + 4.7) < 0.3 && spawn4.cam === 270, fmt4(spawn4))
 check('no "turn your phone" prompt in landscape', (await p4.getByTestId('rotate-prompt').count()) === 0)
 check('the checklist has the five steps plus leaving, none ticked', (await p4.locator('[data-testid^="routine-step-"]').count()) === 6 && (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 0)
@@ -684,7 +686,7 @@ const out = await walkTo(2.5, 0.95, { tol: 0.3, ms: 25000 })
 check('with the door open she can step out onto the porch (z past the wall line)', !!out && out.z > 0.5 && out.z < 1.6, fmt4(out))
 await pushToward(2.5, 3.5, 2500)
 const porchEnd = await read4()
-check('the porch ends at the edge of the home area (the street comes in Stage 5)', !!porchEnd && porchEnd.z < 1.6 && porchEnd.z > 0.6, fmt4(porchEnd))
+check('in the home-only scene the porch ends at the edge of the home area', !!porchEnd && porchEnd.z < 1.6 && porchEnd.z > 0.6, fmt4(porchEnd))
 await p4.waitForTimeout(800)
 shots4.porch = await p4.screenshot({ path: `${OUT}/s4-5-porch.png` })
 } catch (e) {
@@ -715,6 +717,129 @@ try {
 }
 printJpeg('sheet4', (await contactSheet([shots4.door, shots4.porch, ...viewShots].filter(Boolean), 2, 560)).toString('base64'))
 
+
+// =============================================================================================
+// Stage 5: the neighbourhood (the default scene): out of the front door, through the yard gate,
+// down the lane to Ninety Street. The same pilot steers the on-screen stick.
+// =============================================================================================
+console.log('\n--- Stage 5: the neighbourhood (default scene, 844×390) ---')
+const zoneNow = async () => p4.getByTestId('place').getAttribute('data-zone').catch(() => null)
+const waitZone = async (want, ms = 6000) => {
+  const t0 = Date.now()
+  let z = null
+  while (Date.now() - t0 < ms) {
+    z = await zoneNow()
+    if (z === want) return true
+    await p4.waitForTimeout(250)
+  }
+  console.log(`info  zone is "${z}", wanted "${want}"`)
+  return false
+}
+const shots5 = []
+try {
+  // a normal new game still starts in the bedroom of the same world
+  const s0 = await openHome('', '')
+  check('the default scene starts in the bedroom, and the place chip says she is at home', !!s0 && Math.abs(s0.x - 4.55) < 0.3 && Math.abs(s0.z + 4.7) < 0.3 && (await waitZone('home')), fmt4(s0))
+  check('the place chip shows the name', ((await p4.getByTestId('place').innerText()) || '').trim() === 'At home')
+  check('the morning routine is still there and not ticked', (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 0)
+
+  // ?routine=done: the door is already open; she starts on the porch
+  const porch = await openHome('?routine=done&at=2.5,0.9,0', '')
+  check('?routine=done starts her on the porch with every step ticked', !!porch && Math.abs(porch.z - 0.9) < 0.3 && (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 6, fmt4(porch))
+  check('on the porch the place chip says "Home yard"', await waitZone('yard'))
+  check('there is nothing to interact with on the porch (the door is open)', (await p4.getByTestId('btn-interact').count()) === 0)
+  await p4.waitForTimeout(2500)
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-1-porch.png` }))
+
+  // the yard has walls: leaning on the east wall stops her
+  await route([[2.5, 2.4, { tol: 0.4 }]])
+  await pushToward(12, 1.2, 4500)
+  const eastWall = await read4()
+  check('the wall around the yard stops her (she walks east across the yard but cannot go out)', !!eastWall && eastWall.x > 7.2 && eastWall.x < 8.4, fmt4(eastWall))
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-2-yard-wall.png` }))
+
+  // through the gate and into the lane
+  const gate = await route([[2.5, 2.8, { tol: 0.4 }], [2.5, 4.9, { tol: 0.35 }]])
+  check('she walks through the gate in the south wall of the yard', !!gate && gate.z > 4.5, fmt4(gate))
+  const lane = await route([[2.5, 7.4, { tol: 0.4 }]])
+  check('and the place chip changes to the lane', !!lane && (await waitZone('lane')) && ((await p4.getByTestId('place').innerText()) || '').trim() === 'Neighbourhood lane')
+  await p4.waitForTimeout(1200)
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-3-lane.png` }))
+
+  // the buildings on both sides of the lane are solid
+  await pushToward(2.5, 20, 3800)
+  const south = await read4()
+  check('the building across the lane stops her (south side)', !!south && south.z > 9 && south.z < 10.5, fmt4(south))
+  await route([[10, 7.4, { tol: 0.5 }]])
+  await pushToward(10, -20, 3500)
+  const north = await read4()
+  check('the walls on the home side stop her (north side)', !!north && north.z > 4.7 && north.z < 6, fmt4(north))
+
+  // run east along the lane to Ninety Street (Run toggles a faster pace)
+  await p4.getByTestId('btn-run').tap()
+  const eastLane = await route([[16, 7.6, { tol: 0.7 }], [30, 7.6, { tol: 0.7 }], [46, 7.6, { tol: 0.7 }], [61, 7.6, { tol: 0.7 }]], { ms: 60000 })
+  check('she runs east along the lane for about 60 m', !!eastLane && eastLane.x > 59, fmt4(eastLane))
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-4-lane-east.png` }))
+  const mouth = await route([[66.5, 7.6, { tol: 0.6 }]], { ms: 30000 })
+  check('at the end of the lane she steps onto Ninety Street and the chip says so', !!mouth && (await waitZone('boulevard')) && ((await p4.getByTestId('place').innerText()) || '').trim() === 'Ninety Street', fmt4(mouth))
+  await p4.waitForTimeout(1200)
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-5-ninety-street.png` }))
+
+  // across the road to the east pavement; the buildings beyond are solid
+  const across = await route([[79, 7.6, { tol: 0.8 }], [92.4, 7.6, { tol: 0.6 }]], { ms: 40000 })
+  check('she crosses both carriageways and the median to the east pavement', !!across && across.x > 91, fmt4(across))
+  await pushToward(110, 7.6, 3000)
+  const eastEnd = await read4()
+  check('the shops on the east side are solid (she stops at the pavement edge)', !!eastEnd && eastEnd.x > 92 && eastEnd.x < 93.8, fmt4(eastEnd))
+
+  // north along the pavement to the road-works barrier
+  await pushToward(92.4, -60, 15000)
+  const barrier = await read4()
+  check('the barrier closes the road at the north end (she cannot go past it)', !!barrier && barrier.z > -30.1 && barrier.z < -28.9, fmt4(barrier))
+  await p4.waitForTimeout(1200)
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-6-barrier.png` }))
+  await p4.getByTestId('btn-run').tap()
+} catch (e) {
+  check('the Stage 5 walk finished without an exception', false, String(e.message).split('\n')[0])
+}
+printJpeg('sheet5a', (await contactSheet(shots5.filter(Boolean), 2, 560)).toString('base64'))
+
+// she can walk back in through the open front door
+try {
+  const back = await openHome('?routine=done&at=2.5,5.6,180', '')
+  check('she starts in the lane in front of the gate', !!back && Math.abs(back.z - 5.6) < 0.3, fmt4(back))
+  const inside = await route([[2.5, 3.0, { tol: 0.5 }], [2.5, 1.0, { tol: 0.4 }], [2.5, -1.2, { tol: 0.4 }]], { ms: 40000 })
+  check('she walks through the gate, across the porch and through the open front door into the living room', !!inside && inside.z < -0.6, fmt4(inside))
+  check('and the place chip says she is at home again', await waitZone('home'))
+} catch (e) {
+  check('walking back inside finished without an exception', false, String(e.message).split('\n')[0])
+}
+
+// a look at the neighbourhood from several places
+const VIEWS5 = [
+  ['the yard and the gate, from the porch', '?routine=done&at=2.5,1.0,0'],
+  ['the home lane looking east', '?routine=done&at=4,7.6,90'],
+  ['the home lane looking west', '?routine=done&at=40,7.6,270'],
+  ['the cross lane looking north', '?routine=done&at=-23,12,180'],
+  ['Ninety Street from the west pavement', '?routine=done&at=66,7.6,90'],
+  ['Ninety Street from the median, looking north', '?routine=done&at=79,5,180'],
+  ['the side of the house and its roof', '?routine=done&at=8.0,-1.0,180'],
+  ['the back yard behind the house', '?routine=done&at=4,-9.7,270'],
+]
+const viewShots5 = []
+try {
+  for (const [name, query] of VIEWS5) {
+    const at = await openHome(query, '')
+    const [qx, qz] = query.split('at=')[1].split(',').map(Number)
+    check(`?at= puts her at ${name}`, !!at && Math.abs(at.x - qx) < 0.4 && Math.abs(at.z - qz) < 0.4, fmt4(at))
+    await p4.waitForTimeout(2500)
+    viewShots5.push(await p4.screenshot({ path: `${OUT}/s5-view-${viewShots5.length + 1}.png` }))
+  }
+  check('the eight neighbourhood views all look different from each other', (await Promise.all(viewShots5.slice(1).map((v, i) => diffShare(viewShots5[i], v)))).every((x) => x > 0.03))
+} catch (e) {
+  check('the neighbourhood views finished without an exception', false, String(e.message).split('\n')[0])
+}
+printJpeg('sheet5', (await contactSheet(viewShots5.filter(Boolean), 2, 560)).toString('base64'))
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 

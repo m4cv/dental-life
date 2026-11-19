@@ -115,7 +115,8 @@ export function indoorPitch(
   const target = Math.min(wanted, CAM_INDOOR.goodArm)
   let bestArm = -1
   let bestPitch = pitch
-  for (let p = pitch; p <= CAM_INDOOR.pitchMax + 1e-9; p += CAM_INDOOR.pitchStep) {
+  // the steepest pitch is always tried last, even when the step does not land on it exactly
+  for (let p = Math.min(pitch, CAM_INDOOR.pitchMax); ; p = Math.min(p + CAM_INDOOR.pitchStep, CAM_INDOOR.pitchMax)) {
     const arm = safeDistance(pivot, yaw, p, wanted, colliders, ceilingY, CAM_INDOOR.armMin, CAM_INDOOR.margin)
     if (arm >= target - 1e-9) return p
     // keep the pitch with the longest arm; when every pitch is boxed in, the steepest one wins
@@ -125,6 +126,7 @@ export function indoorPitch(
       bestArm = arm
       bestPitch = p
     }
+    if (p >= CAM_INDOOR.pitchMax) break
   }
   return bestPitch
 }

@@ -11,9 +11,11 @@ import {
   Material,
   Matrix4,
   Mesh,
+  MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
   SphereGeometry,
+  Texture,
   TorusGeometry,
   Vector3,
 } from 'three'
@@ -108,6 +110,32 @@ export class Batch {
     this.add(material, g, pos, rot, cast)
   }
 
+  /**
+   * A box whose four sides repeat a texture: one tile per `bay` metres of width and `tile` metres of
+   * height (rounded to whole tiles, so windows never get cut). Top and bottom keep plain 0..1 uv.
+   */
+  facadeBox(material: Material, size: V3, pos: V3, bay: number, tile: number, cast = true): void {
+    const g = new BoxGeometry(size[0], size[1], size[2])
+    const uv = g.getAttribute('uv') as BufferAttribute
+    const tiles = (len: number, per: number) => Math.max(1, Math.round(len / per))
+    const nv = tiles(size[1], tile)
+    for (let i = 0; i < uv.count; i++) {
+      // BoxGeometry stores four vertices per face: +x, -x, +y, -y, +z, -z
+      const face = Math.floor(i / 4)
+      let su = 1
+      let sv = 1
+      if (face < 2) {
+        su = tiles(size[2], bay)
+        sv = nv
+      } else if (face >= 4) {
+        su = tiles(size[0], bay)
+        sv = nv
+      }
+      uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv)
+    }
+    this.add(material, g, pos, [0, 0, 0], cast)
+  }
+
   build(): Group {
     const group = new Group()
     for (const slot of this.slots.values()) {
@@ -132,4 +160,24 @@ export function pleatedSheet(width: number, height: number, pleats: number, dept
   }
   g.computeVertexNormals()
   return g
+}
+
+/** Frees the geometry, materials and textures of everything under `root`. */
+export function disposeGroup(root: Group): void {
+  const mats = new Set<Material>()
+  root.traverse((o) => {
+    const mesh = o as Mesh
+    if (!mesh.isMesh) return
+    mesh.geometry.dispose()
+    const mm = mesh.material
+    for (const x of Array.isArray(mm) ? mm : [mm]) mats.add(x)
+  })
+  const texs = new Set<Texture>()
+  for (const mat of mats) {
+    const std = mat as MeshStandardMaterial
+    if (std.map) texs.add(std.map)
+    if (std.emissiveMap) texs.add(std.emissiveMap)
+    mat.dispose()
+  }
+  for (const t of texs) t.dispose()
 }
