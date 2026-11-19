@@ -49,6 +49,44 @@ function Bench({ position }: { position: Vec3 }) {
   )
 }
 
+/**
+ * Ground, paving, lawns, enclosing buildings, palm and benches. Shared by the Stage 1 test scene
+ * and the Stage 2 character showcase so the character is judged in the same light and setting.
+ */
+export function CourtyardBackdrop() {
+  return (
+    <>
+      {/* ground, paving and lawns */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[300, 300]} />
+        <meshStandardMaterial color={PALETTE.sand} roughness={1} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]} receiveShadow>
+        <boxGeometry args={[24, 0.04, 22]} />
+        <meshStandardMaterial color={PALETTE.paving} roughness={1} />
+      </mesh>
+      <mesh position={[-6, 0.06, 4]} receiveShadow>
+        <boxGeometry args={[9, 0.06, 8]} />
+        <meshStandardMaterial color={PALETTE.lawn} roughness={1} />
+      </mesh>
+      <mesh position={[6, 0.06, 4]} receiveShadow>
+        <boxGeometry args={[9, 0.06, 8]} />
+        <meshStandardMaterial color={PALETTE.lawn} roughness={1} />
+      </mesh>
+
+      {/* enclosing buildings (open to the south, like a courtyard) */}
+      <Block position={[0, 0, -14]} size={[36, 12, 6]} />
+      <Block position={[-15, 0, 0]} size={[6, 12, 22]} />
+      <Block position={[15, 0, 0]} size={[6, 12, 22]} />
+
+      <Palm position={[-1.5, 0, -3]} />
+      {[-7, -2.5, 2.5, 7].map((z) => (
+        <Bench key={z} position={[11, 0, z]} />
+      ))}
+    </>
+  )
+}
+
 /** Slowly circles the scene so the 3D depth, lighting and shadows are visible without input. */
 function OrbitDemoCamera() {
   useFrame(({ camera, clock }) => {
@@ -88,33 +126,7 @@ export function TestScene() {
         shadow-bias={-0.0004}
       />
 
-      {/* ground, paving and lawns */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[300, 300]} />
-        <meshStandardMaterial color={PALETTE.sand} roughness={1} />
-      </mesh>
-      <mesh position={[0, 0.02, 0]} receiveShadow>
-        <boxGeometry args={[24, 0.04, 22]} />
-        <meshStandardMaterial color={PALETTE.paving} roughness={1} />
-      </mesh>
-      <mesh position={[-6, 0.06, 4]} receiveShadow>
-        <boxGeometry args={[9, 0.06, 8]} />
-        <meshStandardMaterial color={PALETTE.lawn} roughness={1} />
-      </mesh>
-      <mesh position={[6, 0.06, 4]} receiveShadow>
-        <boxGeometry args={[9, 0.06, 8]} />
-        <meshStandardMaterial color={PALETTE.lawn} roughness={1} />
-      </mesh>
-
-      {/* enclosing buildings (open to the south, like a courtyard) */}
-      <Block position={[0, 0, -14]} size={[36, 12, 6]} />
-      <Block position={[-15, 0, 0]} size={[6, 12, 22]} />
-      <Block position={[15, 0, 0]} size={[6, 12, 22]} />
-
-      <Palm position={[-1.5, 0, -3]} />
-      {[-7, -2.5, 2.5, 7].map((z) => (
-        <Bench key={z} position={[11, 0, z]} />
-      ))}
+      <CourtyardBackdrop />
 
       <OrbitDemoCamera />
     </>

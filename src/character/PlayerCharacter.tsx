@@ -1,0 +1,308 @@
+import { useMemo, useRef, type RefObject } from 'react'
+import { useFrame } from '@react-three/fiber'
+import type { Group, Material } from 'three'
+import { getCharacterAssets } from './assets'
+import { HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
+import { RIG, advancePhase, createPose, solvePose } from './animations/pose'
+
+type V3 = [number, number, number]
+
+/** Flattened sphere helper: every soft body part in the character is an ellipsoid. */
+function Ell({ mat, p = [0, 0, 0], s, r, shadow = true }: { mat: Material; p?: V3; s: V3; r?: V3; shadow?: boolean }) {
+  const { geo } = getCharacterAssets()
+  return <mesh geometry={geo.unitSphere} material={mat} position={p} scale={s} rotation={r} castShadow={shadow} />
+}
+
+/** Five-petal fabric flower (hijab accessory and the small pin on the coat). Faces +z. */
+function Flower({ position, yaw, scale = 1 }: { position: V3; yaw: number; scale?: number }) {
+  const { mat } = getCharacterAssets()
+  return (
+    <group position={position} rotation={[0, yaw, 0]} scale={scale}>
+      {Array.from({ length: 5 }, (_, i) => {
+        const a = (i / 5) * Math.PI * 2 + 0.3
+        return (
+          <Ell
+            key={i}
+            mat={i % 2 === 0 ? mat.petalA : mat.petalB}
+            p={[Math.cos(a) * 0.0105, Math.sin(a) * 0.0105, 0.002 * (i % 2)]}
+            s={[0.0165, 0.0105, 0.0048]}
+            r={[0.25, 0, a]}
+          />
+        )
+      })}
+      <Ell mat={mat.petalCore} p={[0, 0, 0.004]} s={[0.0062, 0.0062, 0.005]} />
+    </group>
+  )
+}
+
+function Eye({ side, lidRef }: { side: 1 | -1; lidRef: RefObject<Group | null> }) {
+  const { mat } = getCharacterAssets()
+  const x = 0.033
+  const y = 0.014
+  return (
+    <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.22, 0]}>
+      <Ell mat={mat.sclera} s={[0.0145, 0.0085, 0.004]} shadow={false} />
+      <Ell mat={mat.iris} p={[0, 0, 0.0028]} s={[0.0068, 0.0068, 0.003]} shadow={false} />
+      <Ell mat={mat.pupil} p={[0, 0, 0.0042]} s={[0.0034, 0.0034, 0.0016]} shadow={false} />
+      <Ell mat={mat.glint} p={[0.0022, 0.0022, 0.0053]} s={[0.0013, 0.0013, 0.001]} shadow={false} />
+      <group ref={lidRef} position={[0, 0.0092, 0.0016]} scale={[1, 0.001, 1]}>
+        <Ell mat={mat.skin} p={[0, -0.0092, 0]} s={[0.0158, 0.0098, 0.0058]} shadow={false} />
+      </group>
+    </group>
+  )
+}
+
+function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<Group | null> }) {
+  const { geo, mat } = getCharacterAssets()
+  const s = HEAD.skin
+
+  // Flower on the hijab beside the character's right temple, tilted to follow the shell.
+  const fx = -0.083
+  const fy = 0.012
+  const fz = HEAD.shell.rz * Math.sqrt(1 - (fx / HEAD.shell.rx) ** 2 - (fy / HEAD.shell.ry) ** 2)
+  const fyaw = Math.atan2(fx / HEAD.shell.rx ** 2, fz / HEAD.shell.rz ** 2)
+
+  return (
+    <>
+      <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} />
+      {/* nose */}
+      <Ell mat={mat.skin} p={[0, 0, skinZ(0, 0) + 0.0005]} s={[0.0065, 0.02, 0.0055]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.024, skinZ(0, -0.024) + 0.0035]} s={[0.0105, 0.0095, 0.0105]} shadow={false} />
+      {[1, -1].map((k) => (
+        <group key={k}>
+          <Ell mat={mat.skin} p={[k * 0.0085, -0.0265, skinZ(0.0085, -0.0265) + 0.0005]} s={[0.0062, 0.0055, 0.006]} shadow={false} />
+          <Ell mat={mat.pupil} p={[k * 0.0045, -0.0318, skinZ(0.0045, -0.0318) + 0.0038]} s={[0.0024, 0.0016, 0.002]} shadow={false} />
+          <mesh position={[k * 0.047, -0.028, skinZ(0.047, -0.028) + 0.0025]} rotation={[0, k * 0.6, 0]} material={mat.blush}>
+            <circleGeometry args={[0.019, 20]} />
+          </mesh>
+        </group>
+      ))}
+      <Eye side={1} lidRef={lidL} />
+      <Eye side={-1} lidRef={lidR} />
+      {geo.brow.map((g, i) => <mesh key={`b${i}`} geometry={g} material={mat.brow} />)}
+      {geo.lash.map((g, i) => <mesh key={`l${i}`} geometry={g} material={mat.brow} />)}
+      <mesh geometry={geo.upperLip} material={mat.lip} />
+      <mesh geometry={geo.lowerLip} material={mat.lip} />
+      <mesh geometry={geo.mouthLine} material={mat.pupil} />
+
+      {/* hijab: shell with the face window, soft rim, forehead fold, flower */}
+      <mesh geometry={geo.hijabShell} material={mat.hijab} castShadow receiveShadow />
+      <mesh geometry={geo.hijabRim} material={mat.hijabFold} castShadow />
+      <mesh geometry={geo.hijabFold} material={mat.hijabFold} castShadow />
+      <Flower position={[fx - 0.006, fy, fz + 0.0034]} yaw={fyaw} />
+    </>
+  )
+}
+
+function Arm({
+  side,
+  shoulderRef,
+  elbowRef,
+}: {
+  side: 1 | -1
+  shoulderRef: RefObject<Group | null>
+  elbowRef: RefObject<Group | null>
+}) {
+  const { geo, mat } = getCharacterAssets()
+  return (
+    <group ref={shoulderRef} position={[side * RIG.shoulderX, RIG.shoulderY, 0]}>
+      <mesh geometry={geo.upperArm} material={mat.coat} position={[0, -0.14, 0]} castShadow receiveShadow />
+      <group ref={elbowRef} position={[0, -RIG.upperArm, 0]}>
+        <mesh geometry={geo.foreArm} material={mat.coat} position={[0, -0.125, 0]} castShadow receiveShadow />
+        <mesh geometry={geo.cuff} material={mat.coat} position={[0, -0.225, 0]} castShadow />
+        <group position={[0, -RIG.foreArm, 0]}>
+          {/* wrist, palm, fingers, thumb */}
+          <mesh position={[0, -0.012, 0]} material={mat.skin}>
+            <cylinderGeometry args={[0.026, 0.026, 0.06, 12]} />
+          </mesh>
+          <Ell mat={mat.skin} p={[0, -0.06, 0]} s={[0.028, 0.043, 0.014]} />
+          <Ell mat={mat.skin} p={[0, -0.115, 0.003]} s={[0.026, 0.034, 0.011]} />
+          <Ell mat={mat.skin} p={[-side * 0.027, -0.07, 0.012]} s={[0.0105, 0.026, 0.0105]} r={[0, 0, side * 0.25]} />
+          {side === -1 && (
+            <group position={[0, -0.015, 0]}>
+              <mesh geometry={geo.watchBand} material={mat.gold} rotation={[Math.PI / 2, 0, 0]} />
+              <mesh geometry={geo.watchFace} material={mat.gold} position={[-0.034, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
+            </group>
+          )}
+        </group>
+      </group>
+    </group>
+  )
+}
+
+function Leg({
+  side,
+  thighRef,
+  kneeRef,
+  footRef,
+}: {
+  side: 1 | -1
+  thighRef: RefObject<Group | null>
+  kneeRef: RefObject<Group | null>
+  footRef: RefObject<Group | null>
+}) {
+  const { geo, mat } = getCharacterAssets()
+  return (
+    <group ref={thighRef} position={[side * RIG.hipX, 0, 0]}>
+      <mesh geometry={geo.thigh} material={mat.trousers} position={[0, -0.2, 0]} castShadow />
+      <Ell mat={mat.trousers} p={[0, -RIG.thigh, 0]} s={[0.062, 0.062, 0.062]} />
+      <group ref={kneeRef} position={[0, -RIG.thigh, 0]}>
+        <mesh geometry={geo.shin} material={mat.trousers} position={[0, -0.185, 0]} castShadow />
+        <group ref={footRef} position={[0, -RIG.shin, 0]}>
+          <Ell mat={mat.shoe} p={[0, -0.04, 0.045]} s={[0.046, 0.04, 0.118]} />
+          <mesh geometry={geo.sole} material={mat.sole} position={[0, -0.072, 0.045]} castShadow />
+        </group>
+      </group>
+    </group>
+  )
+}
+
+export interface PlayerCharacterProps {
+  /** Target ground speed in m/s: 0 = idle, ~1.45 = walk, ~3.6 = run. Blended smoothly. */
+  speed: number
+  position?: V3
+  /** Heading in radians about +y (0 faces +z). */
+  rotationY?: number
+}
+
+/**
+ * The player: a dental student in a white lab coat, dusty-rose hijab and blush-pink crossbody bag.
+ * Built from primitives and posed every frame by animations/pose.ts (no skinned mesh, no model file),
+ * so there is nothing to download and the look can be tuned from code.
+ */
+export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: PlayerCharacterProps) {
+  const { geo, mat } = getCharacterAssets()
+
+  const bodyRef = useRef<Group>(null)
+  const hipsRef = useRef<Group>(null)
+  const torsoRef = useRef<Group>(null)
+  const headRef = useRef<Group>(null)
+  const skirtRef = useRef<Group>(null)
+  const bagRef = useRef<Group>(null)
+  const thighL = useRef<Group>(null)
+  const kneeL = useRef<Group>(null)
+  const footL = useRef<Group>(null)
+  const thighR = useRef<Group>(null)
+  const kneeR = useRef<Group>(null)
+  const footR = useRef<Group>(null)
+  const shoulderL = useRef<Group>(null)
+  const elbowL = useRef<Group>(null)
+  const shoulderR = useRef<Group>(null)
+  const elbowR = useRef<Group>(null)
+  const lidL = useRef<Group>(null)
+  const lidR = useRef<Group>(null)
+
+  const state = useRef({ speed: 0, phase: 0, time: 0 })
+  const pose = useMemo(() => createPose(), [])
+
+  // Surface yaw for the little flower pin on the coat.
+  const pin = useMemo(() => {
+    const x = -0.142
+    const y = 1.098
+    const r = coatRing(y)
+    const z = coatFrontZ(x, y)
+    return { x, y, z, yaw: Math.atan2(x / (r.rx * r.rx), (z - r.cz) / (r.rz * r.rz)) }
+  }, [])
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.1)
+    const st = state.current
+    st.speed += (speed - st.speed) * (1 - Math.exp(-6 * dt))
+    if (Math.abs(speed - st.speed) < 0.005) st.speed = speed
+    st.phase = advancePhase(st.phase, st.speed, dt)
+    st.time += dt
+    solvePose(pose, st.speed, st.phase, st.time)
+
+    bodyRef.current?.position.set(pose.bodyX, pose.bodyY, 0)
+    hipsRef.current?.rotation.set(0, pose.hipsYaw, 0)
+    torsoRef.current?.rotation.set(pose.torsoPitch, pose.torsoYaw, pose.torsoRoll)
+    headRef.current?.rotation.set(pose.headPitch, pose.headYaw, pose.headRoll)
+    skirtRef.current?.rotation.set(-pose.skirtPitch, 0, pose.skirtRoll)
+    skirtRef.current?.scale.set(1, 1, pose.skirtFlare)
+    bagRef.current?.rotation.set(pose.bagPitch, 0, pose.bagRoll)
+
+    // Hanging segments swing "forward" with a negative x rotation.
+    thighL.current?.rotation.set(-pose.legL.thigh, 0, 0)
+    kneeL.current?.rotation.set(pose.legL.knee, 0, 0)
+    footL.current?.rotation.set(pose.legL.foot, 0, 0)
+    thighR.current?.rotation.set(-pose.legR.thigh, 0, 0)
+    kneeR.current?.rotation.set(pose.legR.knee, 0, 0)
+    footR.current?.rotation.set(pose.legR.foot, 0, 0)
+
+    shoulderL.current?.rotation.set(-pose.armL.pitch, 0, pose.armL.abduct)
+    elbowL.current?.rotation.set(-pose.armL.elbow, 0, 0)
+    shoulderR.current?.rotation.set(-pose.armR.pitch, 0, -pose.armR.abduct)
+    elbowR.current?.rotation.set(-pose.armR.elbow, 0, 0)
+
+    const lid = Math.max(pose.blink, 0.001)
+    lidL.current?.scale.set(1, lid, 1)
+    lidR.current?.scale.set(1, lid, 1)
+  })
+
+  const upperButtons = [1.165, 1.045]
+  const lowerButtons = [0.925, 0.805, 0.685]
+
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <group ref={bodyRef}>
+        {/* ---------------- hips: legs, coat hem, handbag ---------------- */}
+        <group ref={hipsRef} position={[0, RIG.hipY, 0]}>
+          <Leg side={1} thighRef={thighL} kneeRef={kneeL} footRef={footL} />
+          <Leg side={-1} thighRef={thighR} kneeRef={kneeR} footRef={footR} />
+
+          <group ref={skirtRef}>
+            <group position={[0, -RIG.hipY, 0]}>
+              <mesh geometry={geo.coatSkirt} material={mat.coat} castShadow receiveShadow />
+              <mesh geometry={geo.placketLow} material={mat.coatEdge} />
+              {lowerButtons.map((y) => (
+                <mesh key={y} geometry={geo.button} material={mat.button} position={[0, y, coatFrontZ(0, y) + 0.0075]} castShadow />
+              ))}
+            </group>
+          </group>
+
+          <group ref={bagRef} position={[-0.15, 0.905 - RIG.hipY, 0.112]}>
+            <mesh geometry={geo.ring} material={mat.metal} rotation={[0, 0.6, 0]} />
+            <group position={[0, -0.085, 0.025]} rotation={[0, -0.6, 0]}>
+              <mesh geometry={geo.bag} material={mat.bagBody} castShadow />
+              <mesh geometry={geo.bagBand} material={mat.bagTrim} position={[0, 0.056, 0]} castShadow />
+              {[0.024, -0.024].map((z) => (
+                <mesh key={z} geometry={geo.bagHandle} material={mat.bagTrim} position={[0, 0.07, z]} castShadow />
+              ))}
+            </group>
+          </group>
+        </group>
+
+        {/* ---------------- torso: coat, hijab drape, arms, head ---------------- */}
+        <group ref={torsoRef} position={[0, RIG.waistY, 0]}>
+          <group position={[0, -RIG.waistY, 0]}>
+            <mesh geometry={geo.coatTorso} material={mat.coat} castShadow receiveShadow />
+            <mesh geometry={geo.placketUp} material={mat.coatEdge} />
+            <mesh geometry={geo.vNeck} material={mat.innerTop} />
+            <mesh geometry={geo.lapelL} material={mat.lapel} />
+            <mesh geometry={geo.lapelR} material={mat.lapel} />
+            <mesh geometry={geo.pocketEdge} material={mat.coatEdge} />
+            <mesh geometry={geo.pocket} material={mat.coat} />
+            <mesh geometry={geo.pinBlack} material={mat.pin} />
+            <mesh geometry={geo.badge} material={mat.badge} />
+            <Flower position={[pin.x, pin.y, pin.z + 0.011]} yaw={pin.yaw} scale={0.55} />
+            {upperButtons.map((y) => (
+              <mesh key={y} geometry={geo.button} material={mat.button} position={[0, y, coatFrontZ(0, y) + 0.0075]} castShadow />
+            ))}
+            <mesh geometry={geo.strap} material={mat.strap} />
+            <mesh geometry={geo.neck} material={mat.skin} position={[0, 1.4, 0.004]} />
+            <mesh geometry={geo.hijabDrape} material={mat.hijab} castShadow receiveShadow />
+
+            <Arm side={1} shoulderRef={shoulderL} elbowRef={elbowL} />
+            <Arm side={-1} shoulderRef={shoulderR} elbowRef={elbowR} />
+
+            <group ref={headRef} position={[0, RIG.neckY, 0]}>
+              <group position={[0, RIG.headCenterY - RIG.neckY, HEAD.centerZ]}>
+                <Head lidL={lidL} lidR={lidR} />
+              </group>
+            </group>
+          </group>
+        </group>
+      </group>
+    </group>
+  )
+}

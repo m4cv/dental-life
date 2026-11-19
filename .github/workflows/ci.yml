@@ -1,0 +1,36 @@
+name: CI (branches)
+
+# Runs on every branch except main (main has its own build-and-deploy workflow).
+# Same checks as the deploy workflow, but nothing is published, and the render smoke test is
+# allowed to fail the run. Used to verify work before it reaches the live link.
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Unit tests (animation + shape maths)
+        run: npm test
+      - name: Type-check and build
+        run: npm run build
+      - name: Render smoke test (real WebGL)
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          node scripts/smoke-test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshots
+          path: smoke-output/
+          if-no-files-found: ignore
