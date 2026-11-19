@@ -225,7 +225,16 @@ try {
   await shoot('4-corridor-door')
   const inHall = await route([[-171.5, -485.6], [-176.7, -484.95]], { tol: 0.2 })
   check('through the door and along the back aisle to the end of the first row', !!inHall && (await waitZone('hall1')), fmt4(inHall))
-  const seatLabel = await label()
+  await p4.waitForTimeout(1500)
+  await shoot('4b-at-seat')
+  let seatLabel = await label()
+  if (!seatLabel) {
+    console.log(`info  no button at ${fmt4(await read4())}, zone ${await zone()}; screen text ${JSON.stringify(((await p4.evaluate(() => document.body.innerText)) || '').replace(/\s+/g, ' ').slice(0, 500))}`)
+    await walkTo(-176.7, -484.6, { tol: 0.15, ms: 20000 })
+    seatLabel = await label()
+    console.log(`info  after stepping closer: ${fmt4(await read4())}, label ${seatLabel}`)
+    await shoot('4c-stepped-closer')
+  }
   check('the button offers "Attend: Periodontology 1"', seatLabel === 'Attend: Periodontology 1', `${seatLabel}`)
   const note = (await p4.getByTestId('interact-note').innerText().catch(() => '')) || ''
   check('the note says the lecture starts at 08:00 and she will wait', /08:00/.test(note) && /wait/.test(note), note)
