@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { DirectionalLight, Group } from 'three'
-import { CAM, applyLook, cameraOffset, createCam, easeArm, safeDistance } from '@/camera/followCamera'
+import type { DirectionalLight, Group, PerspectiveCamera } from 'three'
+import { CAM, applyLook, cameraOffset, createCam, easeArm, fovForAspect, safeDistance } from '@/camera/followCamera'
 import { PlayerCharacter } from '@/character/PlayerCharacter'
 import { RUN_SPEED, WALK_SPEED } from '@/character/animations/pose'
 import { DEFAULT_QUALITY, GRAPHICS_PROFILES } from '@/config/graphics'
@@ -88,6 +88,12 @@ function PlayerRig() {
     const o = cameraOffset(c.yaw, c.pitch, c.arm)
     camera.position.set(pivot[0] + o[0], pivot[1] + o[1], pivot[2] + o[2])
     camera.lookAt(pivot[0], pivot[1], pivot[2])
+    const lens = camera as PerspectiveCamera
+    const fov = fovForAspect(lens.aspect)
+    if (lens.fov !== fov) {
+      lens.fov = fov
+      lens.updateProjectionMatrix()
+    }
 
     // ---- low-rate read-out for the diagnostics panel ----
     readoutClock.current += delta

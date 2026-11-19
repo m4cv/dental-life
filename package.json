@@ -1,7 +1,7 @@
 {
   "name": "dental-life",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Dental Life — a mobile-first 3D life simulation of a fourth-year dental student in Yemen.",
   "type": "module",
   "engines": {

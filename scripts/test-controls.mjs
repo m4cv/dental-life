@@ -3,7 +3,8 @@ import {
   ACCEL, DECEL, MAX_FRAME, PLAYER_RADIUS, STICK_DEADZONE, createPlayer, resolveCollisions, shapeStick, stepPlayer,
   stickToWorld, wrapAngle, pointBlocked,
 } from '../src/controls/movement.ts'
-import { CAM, applyLook, cameraOffset, createCam, easeArm, safeDistance } from '../src/camera/followCamera.ts'
+import { CAM, applyLook, cameraOffset, createCam, easeArm, fovForAspect, safeDistance } from '../src/camera/followCamera.ts'
+import { controlLayout, needsRotate } from '../src/controls/layout.ts'
 import { BENCH_X, BENCH_Z, BUILDINGS, COURTYARD_COLLIDERS, PALM, SPAWN, WORLD_BOUNDS } from '../src/world/courtyardLayout.ts'
 
 let failures = 0
@@ -207,6 +208,26 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
   check('the camera never goes under the ground', floor < 5 && floor >= CAM.armMin, `${floor.toFixed(2)} m`)
   check('arm shortens instantly and lengthens smoothly', easeArm(4, 2, 0.016) === 2 && easeArm(2, 4, 0.016) > 2 && easeArm(2, 4, 0.016) < 2.2)
 }
+
+// ---- landscape layout ----------------------------------------------------------------------------
+{
+  const L = controlLayout(844, 390)
+  check('landscape 844×390: joystick base is 121 px, much smaller than a third of the height', L.base === 121 && L.base < 390 / 3, `${L.base}px`)
+  check('landscape 844×390: knob 56 px, finger travel 51 px, both inside the base', L.knob === 56 && L.stickRadius === 51 && L.stickRadius * 2 <= L.base, `knob ${L.knob}, travel ${L.stickRadius}`)
+  check('the layout is the same whichever way the screen is turned (it follows the short side)', JSON.stringify(controlLayout(390, 844)) === JSON.stringify(L))
+  let small = true
+  for (const [w, h] of [[640, 360], [740, 360], [800, 360], [844, 390], [915, 412], [932, 430], [1024, 768], [1366, 1024]]) {
+    const l = controlLayout(w, h)
+    if (l.runSize < 56 || l.recenterSize < 48 || l.base < 96 || l.base > 150) small = false
+  }
+  check('buttons stay at least 44 px (Run ≥ 56, Recentre ≥ 48) and the stick 96–150 px on every common screen', small)
+  const tiny = controlLayout(640, 300)
+  check('on a very short screen the stick is still usable (≥ 96 px)', tiny.base === 96, `${tiny.base}px`)
+}
+check('narrow portrait screens ask for rotation (390×844, 360×800)', needsRotate(390, 844) && needsRotate(360, 800))
+check('landscape phones, tablets and desktop windows do not', !needsRotate(844, 390) && !needsRotate(1024, 768) && !needsRotate(820, 1180) && !needsRotate(1280, 720))
+check('a square window is not asked to rotate', !needsRotate(500, 500))
+check('the camera is tightened on wide screens and normal on tall ones', fovForAspect(844 / 390) === 46 && fovForAspect(390 / 844) === 50 && fovForAspect(1.2) === 46 && fovForAspect(1.19) === 50)
 
 if (failures) {
   console.log(`\n${failures} control check(s) FAILED`)

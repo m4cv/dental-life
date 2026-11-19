@@ -22,6 +22,14 @@ export const CAM = {
   zoomPerPx: 0.014,
 } as const
 
+/**
+ * Vertical field of view. A wide (landscape) screen is short, so the view is tightened a little
+ * to keep the character a decent size; a tall portrait screen keeps the wider 50°.
+ */
+export function fovForAspect(aspect: number): number {
+  return aspect >= 1.2 ? 46 : 50
+}
+
 export interface CamRig {
   yaw: number
   pitch: number

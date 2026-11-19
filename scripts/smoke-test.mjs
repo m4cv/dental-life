@@ -114,11 +114,11 @@ async function diffShare(a, b) {
 }
 
 /** Tile screenshots into one JPEG contact sheet (rendered by the browser). */
-async function contactSheet(shots, columns) {
-  const html = `<body style="margin:0;background:#222;display:grid;grid-template-columns:repeat(${columns},390px);gap:4px">${shots
-    .map((s) => `<img style="width:390px;display:block" src="data:image/png;base64,${s.toString('base64')}">`)
+async function contactSheet(shots, columns, tile = 390) {
+  const html = `<body style="margin:0;background:#222;display:grid;grid-template-columns:repeat(${columns},${tile}px);gap:4px">${shots
+    .map((s) => `<img style="width:${tile}px;display:block" src="data:image/png;base64,${s.toString('base64')}">`)
     .join('')}</body>`
-  await tools.setViewportSize({ width: columns * 394, height: 900 })
+  await tools.setViewportSize({ width: columns * (tile + 4), height: 900 })
   await tools.setContent(html)
   await tools.waitForFunction(() => [...document.images].every((i) => i.complete))
   return tools.screenshot({ type: 'jpeg', quality: 62, fullPage: true })
@@ -230,11 +230,13 @@ printJpeg('face', faceJpeg.toString('base64'))
 // =============================================================================================
 // Stage 3: the playable scene and the touch controls, driven with real multi-touch events
 // =============================================================================================
-console.log('\n--- Stage 3: touch controls ---')
+console.log('\n--- Stage 3: touch controls (phone held sideways, 844×390) ---')
 // Software rendering is slow, so this part runs at 1x pixel density (4x fewer pixels) to get more
 // simulated seconds per real second. The simulation clamps each frame to 0.5 s, so slow frames
 // still advance the game.
-const context3 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
+const W = 844
+const H = 390
+const context3 = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
 const p3 = await context3.newPage()
 p3.on('console', (m) => {
   if (m.type() === 'error') errors.push(`[stage3] ${m.text()}`)
@@ -269,9 +271,25 @@ const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
 
 await p3.goto(URL)
 await p3.getByRole('heading', { name: 'Dental Life' }).waitFor()
+// the main menu has to fit a landscape phone without scrolling (also on a small 640×360 one)
+const menuFits = async () => {
+  const b = await p3.getByRole('button', { name: 'New Game' }).boundingBox()
+  const t = await p3.getByRole('heading', { name: 'Dental Life' }).boundingBox()
+  const f = await p3.getByText(/^Stage \d/).boundingBox()
+  const vw = p3.viewportSize().width
+  const vh = p3.viewportSize().height
+  const inside = (r) => !!r && r.x >= 0 && r.y >= 0 && r.x + r.width <= vw && r.y + r.height <= vh
+  return inside(b) && inside(t) && inside(f) && !(b.y < t.y + t.height && b.x < t.x + t.width && b.x + b.width > t.x)
+}
+check('main menu fits the 844×390 landscape screen (title, New Game and footer all visible, nothing overlapping)', await menuFits())
+await p3.setViewportSize({ width: 640, height: 360 })
+check('main menu also fits a small 640×360 landscape screen', await menuFits())
+await p3.setViewportSize({ width: W, height: H })
+const menuShot = await p3.screenshot({ path: `${OUT}/s3-0-menu.png` })
 await p3.getByRole('button', { name: 'New Game' }).tap()
 await p3.locator('canvas').waitFor({ timeout: 30000 })
 await p3.getByTestId('touch-controls').waitFor({ timeout: 15000 })
+check('landscape: no "turn your phone" prompt is shown', (await p3.getByTestId('rotate-prompt').count()) === 0)
 const have = async (id) => (await p3.getByTestId(id).count()) === 1
 check(
   'touch overlay, joystick, Run and Recenter buttons exist',
@@ -283,7 +301,15 @@ const runBox = await p3.getByTestId('btn-run').boundingBox()
 const recBox = await p3.getByTestId('btn-recenter').boundingBox()
 check('Run and Recenter are at least 44 px', !!runBox && !!recBox && runBox.width >= 44 && runBox.height >= 44 && recBox.width >= 44 && recBox.height >= 44, `${runBox?.width}px / ${recBox?.width}px`)
 const joyBox = await p3.getByTestId('joystick').boundingBox()
-check('joystick rests in the bottom-left corner', !!joyBox && joyBox.x < 195 && joyBox.y > 844 / 2, `${joyBox?.x?.toFixed(0)}, ${joyBox?.y?.toFixed(0)}`)
+check('joystick rests in the bottom-left corner', !!joyBox && joyBox.x < 100 && joyBox.y + joyBox.height > H * 0.7 && joyBox.y + joyBox.height <= H, `${joyBox?.x?.toFixed(0)}, ${joyBox?.y?.toFixed(0)}`)
+check('joystick is 121 px wide: under a third of the screen height', !!joyBox && Math.abs(joyBox.width - 121) <= 1 && joyBox.width < H / 3, `${joyBox?.width}px`)
+check('Run and Recentre sit in the bottom-right corner, stacked, inside the screen', !!runBox && !!recBox && runBox.x > W * 0.75 && runBox.x + runBox.width <= W && runBox.y + runBox.height <= H && recBox.y + recBox.height < runBox.y, `run ${runBox?.x?.toFixed(0)},${runBox?.y?.toFixed(0)} recentre ${recBox?.x?.toFixed(0)},${recBox?.y?.toFixed(0)}`)
+const diagBox = await p3.getByTestId('diagnostics').boundingBox()
+const menuBtn = await p3.getByRole('button', { name: 'Back to main menu' }).boundingBox()
+check('the read-out panel does not cover the Recentre button or the Menu button', !!diagBox && !!recBox && !!menuBtn && diagBox.y + diagBox.height < recBox.y && menuBtn.x + menuBtn.width < diagBox.x, `panel bottom ${((diagBox?.y ?? 0) + (diagBox?.height ?? 0)).toFixed(0)}, recentre top ${recBox?.y?.toFixed(0)}`)
+const hintBox = await p3.getByTestId('controls-hint').boundingBox()
+const overlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+check('the first-run hint does not overlap the joystick or the buttons', !!hintBox && !!joyBox && !!runBox && !!recBox && !overlap(hintBox, joyBox) && !overlap(hintBox, runBox) && !overlap(hintBox, recBox))
 
 const start = await until((d) => Math.abs(d.z - 8) < 0.3 && d.cam === 180, 60000)
 check('player starts at the spawn point facing north (x 0, z 8, camera 180°)', !!start && Math.abs(start.x) < 0.3 && Math.abs(start.z - 8) < 0.3 && start.cam === 180 && start.speed < 0.2, fmt(start))
@@ -291,9 +317,9 @@ await p3.waitForTimeout(1500)
 const shotStart = await p3.screenshot({ path: `${OUT}/s3-1-start.png` })
 
 // ---- 1. walk: left thumb on the joystick, pushed forward ----
-await touchEvent('touchStart', [[90, 640, 1]])
-await touchEvent('touchMove', [[90, 610, 1]])
-await touchEvent('touchMove', [[90, 570, 1]])
+await touchEvent('touchStart', [[110, 300, 1]])
+await touchEvent('touchMove', [[110, 280, 1]])
+await touchEvent('touchMove', [[110, 240, 1]])
 check('joystick becomes active under the thumb', (await p3.getByTestId('joystick').getAttribute('data-active')) === 'true')
 const walking = await until((d) => d.z < start.z - 1.5, 90000)
 check('stick forward walks the character north (-z), straight', !!walking && walking.z < start.z - 1.5 && Math.abs(walking.x - start.x) < 0.4, fmt(walking))
@@ -311,8 +337,8 @@ check('she stops after the thumb is lifted', !!stopped && stopped.speed < 0.2, f
 // ---- 3. run toggle ----
 await p3.getByTestId('btn-run').tap()
 check('Run button toggles on', (await p3.getByTestId('btn-run').getAttribute('aria-pressed')) === 'true')
-await touchEvent('touchStart', [[90, 640, 1]])
-await touchEvent('touchMove', [[90, 570, 1]])
+await touchEvent('touchStart', [[110, 300, 1]])
+await touchEvent('touchMove', [[110, 240, 1]])
 const running = await until((d) => d.speed >= 3.2, 90000)
 check('running reaches about 3.6 m/s', !!running && running.speed >= 3.2 && running.speed <= 3.75, fmt(running))
 const shotRun = await p3.screenshot({ path: `${OUT}/s3-3-running.png` })
@@ -327,8 +353,8 @@ const shotWall = await p3.screenshot({ path: `${OUT}/s3-4-wall.png` })
 
 // ---- 5. camera drag on the right half ----
 const camBefore = (await readDebug()).cam
-await touchEvent('touchStart', [[330, 300, 5]])
-for (const x of [310, 290, 270, 250, 230]) await touchEvent('touchMove', [[x, 300, 5]])
+await touchEvent('touchStart', [[700, 200, 5]])
+for (const x of [680, 660, 640, 620, 600]) await touchEvent('touchMove', [[x, 200, 5]])
 await touchEvent('touchEnd', [])
 const turned = await until((d) => angleDiff(d.cam, camBefore) > 20, 30000)
 check('dragging the right half turns the camera by the drag distance (about 31°)', !!turned && angleDiff(turned.cam, camBefore) > 20 && angleDiff(turned.cam, camBefore) < 45, `${camBefore}° → ${turned?.cam}°`)
@@ -340,28 +366,28 @@ const centred = await until((d) => angleDiff(d.cam, 180) < 6, 30000)
 check('Recenter swings the camera back behind her', !!centred && angleDiff(centred.cam, 180) < 6, fmt(centred))
 
 // ---- 7. camera-relative steering: turn the camera, push forward, she slides along the wall ----
-await touchEvent('touchStart', [[330, 300, 5]])
-for (const x of [310, 290, 270, 250, 230]) await touchEvent('touchMove', [[x, 300, 5]])
+await touchEvent('touchStart', [[700, 200, 5]])
+for (const x of [680, 660, 640, 620, 600]) await touchEvent('touchMove', [[x, 200, 5]])
 await touchEvent('touchEnd', [])
 await until((d) => angleDiff(d.cam, 180) > 20, 30000)
 const slideStart = await readDebug()
-await touchEvent('touchStart', [[90, 640, 1]])
-await touchEvent('touchMove', [[90, 570, 1]])
+await touchEvent('touchStart', [[110, 300, 1]])
+await touchEvent('touchMove', [[110, 240, 1]])
 const slid = await until((d) => d.x > slideStart.x + 1.0, 90000)
 await touchEvent('touchEnd', [])
 check('forward follows the camera: she slides east along the wall and does not enter it', !!slid && slid.x > slideStart.x + 1.0 && slid.z >= -10.8, `${fmt(slideStart)} → ${fmt(slid)}`)
 
 // ---- 8. pinch zoom with two fingers on the right half ----
 const zoomBefore = (await readDebug()).dist
-await touchEvent('touchStart', [[250, 420, 1]])
-await touchEvent('touchStart', [[250, 420, 1], [350, 420, 2]])
-for (const k of [20, 40, 60, 80]) await touchEvent('touchMove', [[250 - k, 420, 1], [350 + k * 0.5, 420, 2]])
+await touchEvent('touchStart', [[520, 180, 1]])
+await touchEvent('touchStart', [[520, 180, 1], [620, 180, 2]])
+for (const k of [20, 40, 60, 80]) await touchEvent('touchMove', [[520 - k, 180, 1], [620 + k * 0.5, 180, 2]])
 await touchEvent('touchEnd', [])
 const zoomedIn = await until((d) => d.dist < zoomBefore - 0.5, 30000)
 check('spreading two fingers zooms the camera in', !!zoomedIn && zoomedIn.dist < zoomBefore - 0.5, `${zoomBefore} m → ${zoomedIn?.dist} m`)
-await touchEvent('touchStart', [[200, 420, 1]])
-await touchEvent('touchStart', [[200, 420, 1], [380, 420, 2]])
-for (const k of [30, 60, 90, 120]) await touchEvent('touchMove', [[200 + k * 0.4, 420, 1], [380 - k * 0.6, 420, 2]])
+await touchEvent('touchStart', [[470, 180, 1]])
+await touchEvent('touchStart', [[470, 180, 1], [760, 180, 2]])
+for (const k of [30, 60, 90, 120]) await touchEvent('touchMove', [[470 + k * 0.4, 180, 1], [760 - k * 0.6, 180, 2]])
 await touchEvent('touchEnd', [])
 const zoomedOut = await until((d) => d.dist > zoomedIn.dist + 0.5, 30000)
 check('pinching two fingers together zooms the camera out', !!zoomedOut && zoomedOut.dist > zoomedIn.dist + 0.5, `${zoomedIn?.dist} m → ${zoomedOut?.dist} m`)
@@ -375,7 +401,25 @@ const back = await until((d) => d.z > keyStart.z + 0.8, 60000)
 await p3.keyboard.up('ArrowDown')
 check('keyboard fallback: ArrowDown walks backwards (away from the camera direction)', !!back && back.z > keyStart.z + 0.8, `${fmt(keyStart)} → ${fmt(back)}`)
 
-// ---- 10. leaving and starting again resets the player ----
+// ---- 10. turning the phone upright shows the rotate prompt; turning it back removes it ----
+await p3.setViewportSize({ width: 390, height: 844 })
+await p3.getByTestId('rotate-prompt').waitFor({ timeout: 10000 })
+const promptBox = await p3.getByTestId('rotate-prompt').boundingBox()
+check('portrait: a "Turn your phone sideways" prompt covers the whole screen', !!promptBox && promptBox.width >= 389 && promptBox.height >= 843 && (await p3.getByText('Turn your phone sideways').isVisible()))
+const shotPortrait = await p3.screenshot({ path: `${OUT}/s3-7-portrait-prompt.png` })
+await p3.setViewportSize({ width: W, height: H })
+await p3.waitForTimeout(500)
+check('turning back to landscape removes the prompt', (await p3.getByTestId('rotate-prompt').count()) === 0)
+const joyBack = await p3.getByTestId('joystick').boundingBox()
+check('after rotating back the joystick is again in the bottom-left corner at 121 px', !!joyBack && joyBack.x < 100 && joyBack.y > H * 0.5 && Math.abs(joyBack.width - 121) <= 1, `${joyBack?.x?.toFixed(0)}, ${joyBack?.y?.toFixed(0)} ${joyBack?.width}px`)
+const afterTurn = await readDebug()
+await touchEvent('touchStart', [[110, 300, 1]])
+await touchEvent('touchMove', [[110, 240, 1]])
+const stillWalks = await until((d) => d.speed > 0.8, 40000)
+await touchEvent('touchEnd', [])
+check('the joystick still works after rotating', !!stillWalks && stillWalks.speed > 0.8, `${fmt(afterTurn)} → ${fmt(stillWalks)}`)
+
+// ---- 11. leaving and starting again resets the player ----
 await p3.getByRole('button', { name: 'Back to main menu' }).tap()
 await p3.getByRole('heading', { name: 'Dental Life' }).waitFor()
 await p3.getByRole('button', { name: 'New Game' }).tap()
@@ -384,7 +428,7 @@ const again = await until((d) => Math.abs(d.z - 8) < 0.3 && d.cam === 180, 60000
 check('a new game starts again at the spawn point with no leftover input', !!again && Math.abs(again.x) < 0.3 && again.speed < 0.2, fmt(again))
 check('Run is off in a new game', (await p3.getByTestId('btn-run').getAttribute('aria-pressed')) === 'false')
 
-printJpeg('sheet3', (await contactSheet([shotStart, shotWalk, shotRun, shotWall, shotLook, shotZoom], 3)).toString('base64'))
+printJpeg('sheet3', (await contactSheet([menuShot, shotStart, shotWalk, shotRun, shotWall, shotLook, shotZoom, shotPortrait], 2, 560)).toString('base64'))
 
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))

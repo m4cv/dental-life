@@ -30,6 +30,10 @@ canvas {
   padding-top: max(env(safe-area-inset-top), 1.25rem);
   padding-bottom: max(env(safe-area-inset-bottom), 1.25rem);
 }
+.safe-x {
+  padding-left: max(env(safe-area-inset-left), 1.5rem);
+  padding-right: max(env(safe-area-inset-right), 1.5rem);
+}
 .hud-top-safe {
   padding: max(env(safe-area-inset-top), 0.75rem) max(env(safe-area-inset-right), 0.75rem) 0
     max(env(safe-area-inset-left), 0.75rem);

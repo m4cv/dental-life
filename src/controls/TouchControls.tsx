@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useControlStore } from '@/state/useControlStore'
+import { useViewport } from '@/ui/useViewport'
 import { input, resetInput } from './input'
-
-/** Finger travel (CSS px) for a fully pushed stick. */
-const STICK_RADIUS = 56
-const BASE = 128
-const KNOB = 56
+import { controlLayout } from './layout'
 
 /**
  * On-screen controls, drawn over the 3D canvas:
@@ -23,6 +20,11 @@ export function TouchControls() {
   const run = useControlStore((s) => s.run)
   const toggleRun = useControlStore((s) => s.toggleRun)
   const [hint, setHint] = useState(true)
+  // Sizes follow the screen (see layout.ts): the game is meant to be played in landscape.
+  const { w, h } = useViewport()
+  const L = controlLayout(w, h)
+  const layoutRef = useRef(L)
+  const homeRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const root = rootRef.current
@@ -32,7 +34,8 @@ export function TouchControls() {
     if (!root || !anchor || !base || !knob) return
 
     const placeBase = (cx: number, cy: number, active: boolean) => {
-      base.style.transform = `translate(${cx - BASE / 2}px, ${cy - BASE / 2}px)`
+      const half = layoutRef.current.base / 2
+      base.style.transform = `translate(${cx - half}px, ${cy - half}px)`
       base.style.opacity = active ? '1' : '0.5'
       base.dataset.active = active ? 'true' : 'false'
     }
@@ -42,6 +45,7 @@ export function TouchControls() {
       knob.style.transform = 'translate(0px, 0px)'
     }
     home()
+    homeRef.current = home
 
     let stickId = -1
     let originX = 0
@@ -50,16 +54,17 @@ export function TouchControls() {
     let pinch = 0
 
     const setStick = (clientX: number, clientY: number) => {
+      const radius = layoutRef.current.stickRadius
       let dx = clientX - originX
       let dy = clientY - originY
       const len = Math.hypot(dx, dy)
-      if (len > STICK_RADIUS) {
-        dx = (dx / len) * STICK_RADIUS
-        dy = (dy / len) * STICK_RADIUS
+      if (len > radius) {
+        dx = (dx / len) * radius
+        dy = (dy / len) * radius
       }
       knob.style.transform = `translate(${dx}px, ${dy}px)`
-      input.stickX = dx / STICK_RADIUS
-      input.stickY = -dy / STICK_RADIUS
+      input.stickX = dx / radius
+      input.stickY = -dy / radius
     }
     const releaseStick = () => {
       stickId = -1
@@ -80,8 +85,9 @@ export function TouchControls() {
       const leftSide = e.clientX < window.innerWidth / 2
       if (e.pointerType !== 'mouse' && leftSide && stickId === -1) {
         stickId = e.pointerId
-        originX = Math.min(Math.max(e.clientX, BASE / 2 + 8), window.innerWidth - BASE / 2 - 8)
-        originY = Math.min(Math.max(e.clientY, BASE / 2 + 8), window.innerHeight - BASE / 2 - 8)
+        const half = layoutRef.current.base / 2 + 8
+        originX = Math.min(Math.max(e.clientX, half), window.innerWidth - half)
+        originY = Math.min(Math.max(e.clientY, half), window.innerHeight - half)
         placeBase(originX, originY, true)
         setStick(e.clientX, e.clientY)
       } else {
@@ -152,8 +158,11 @@ export function TouchControls() {
       looks.clear()
     }
 
+    // Rotating the phone resizes everything: let go of any touch and rest the stick again.
     const onResize = () => {
-      if (stickId === -1) home()
+      if (stickId !== -1) releaseStick()
+      looks.clear()
+      pinch = 0
     }
 
     root.addEventListener('pointerdown', onDown, { passive: false })
@@ -169,6 +178,7 @@ export function TouchControls() {
     const hintTimer = window.setTimeout(() => setHint(false), 9000)
 
     return () => {
+      homeRef.current = () => {}
       window.clearTimeout(hintTimer)
       root.removeEventListener('pointerdown', onDown)
       root.removeEventListener('pointermove', onMove)
@@ -184,19 +194,28 @@ export function TouchControls() {
     }
   }, [])
 
+  // Re-seat the resting joystick whenever the screen size (and so the control sizes) change.
+  useEffect(() => {
+    layoutRef.current = L
+    homeRef.current()
+  }, [L.base, L.stickRadius, w, h])
+
+  const edge = 'max(env(safe-area-inset-left), 1rem)'
+  const edgeR = 'max(env(safe-area-inset-right), 1rem)'
+  const floor = 'max(env(safe-area-inset-bottom), 1rem)'
+
   return (
     <div ref={rootRef} data-testid="touch-controls" className="absolute inset-0 select-none" style={{ touchAction: 'none' }}>
-      {/* where the joystick rests when nobody is touching it */}
+      {/* where the joystick rests when nobody is touching it: low in the left corner, under the thumb */}
       <div
         ref={anchorRef}
         aria-hidden
         className="pointer-events-none absolute"
         style={{
-          left: 'max(env(safe-area-inset-left), 1rem)',
-          bottom: 'max(env(safe-area-inset-bottom), 1.25rem)',
-          width: BASE,
-          height: BASE,
-          marginLeft: '0.75rem',
+          left: `calc(${edge} + 1.5rem)`,
+          bottom: `calc(${floor} + 0.5rem)`,
+          width: L.base,
+          height: L.base,
         }}
       />
       <div
@@ -205,27 +224,31 @@ export function TouchControls() {
         data-active="false"
         aria-hidden
         className="pointer-events-none absolute left-0 top-0 rounded-full border-2 border-white/60 bg-black/25"
-        style={{ width: BASE, height: BASE, opacity: 0.5, willChange: 'transform' }}
+        style={{ width: L.base, height: L.base, opacity: 0.5, willChange: 'transform' }}
       >
         <div
           ref={knobRef}
           data-testid="joystick-knob"
           className="absolute rounded-full bg-white/85 shadow-lg"
-          style={{ width: KNOB, height: KNOB, left: '50%', top: '50%', margin: -KNOB / 2, willChange: 'transform' }}
+          style={{ width: L.knob, height: L.knob, left: '50%', top: '50%', margin: -L.knob / 2, willChange: 'transform' }}
         />
       </div>
 
       {hint && (
         <p
           data-testid="controls-hint"
-          className="pointer-events-none absolute inset-x-0 mx-auto w-fit max-w-[90%] rounded-full bg-black/45 px-3 py-1.5 text-center text-xs text-white"
-          style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 1.25rem) + 9rem)' }}
+          className="pointer-events-none absolute inset-x-0 mx-auto w-fit max-w-[60%] rounded-full bg-black/45 px-3 py-1.5 text-center text-xs text-white"
+          style={{ bottom: `calc(${floor} + 0.25rem)` }}
         >
           Left thumb: move · Right thumb: look · Pinch: zoom
         </p>
       )}
 
-      <div className="hud-bottom-safe pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-end gap-3 pb-1">
+      {/* right thumb's corner: Run (toggle) with Recentre above it; both stay out of the look drag */}
+      <div
+        className="pointer-events-none absolute flex flex-col items-center gap-3"
+        style={{ right: `calc(${edgeR} + 0.5rem)`, bottom: `calc(${floor} + 0.5rem)` }}
+      >
         <button
           type="button"
           data-touch-button
@@ -234,7 +257,8 @@ export function TouchControls() {
           onClick={() => {
             input.recenter = true
           }}
-          className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full border border-white/50 bg-black/45 text-xl text-white active:bg-white/40"
+          style={{ width: L.recenterSize, height: L.recenterSize }}
+          className="pointer-events-auto grid place-items-center rounded-full border border-white/50 bg-black/45 text-xl text-white active:bg-white/40"
         >
           ⟲
         </button>
@@ -244,8 +268,9 @@ export function TouchControls() {
           data-testid="btn-run"
           aria-pressed={run}
           onClick={toggleRun}
+          style={{ width: L.runSize, height: L.runSize }}
           className={
-            'pointer-events-auto grid h-16 w-16 place-items-center rounded-full border text-sm font-bold ' +
+            'pointer-events-auto grid place-items-center rounded-full border text-sm font-bold ' +
             (run ? 'border-white bg-white text-slate-900' : 'border-white/50 bg-black/45 text-white active:bg-white/40')
           }
         >

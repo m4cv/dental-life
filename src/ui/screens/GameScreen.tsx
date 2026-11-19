@@ -3,6 +3,7 @@ import { TouchControls } from '@/controls/TouchControls'
 import { useAppStore } from '@/state/useAppStore'
 import { CharacterPreviewPanel } from '@/ui/components/CharacterPreviewPanel'
 import { Diagnostics } from '@/ui/components/Diagnostics'
+import { RotatePrompt } from '@/ui/components/RotatePrompt'
 import { CharacterShowcase } from '@/world/CharacterShowcase'
 import { PlayableScene } from '@/world/PlayableScene'
 
@@ -33,6 +34,8 @@ export default function GameScreen() {
         </button>
         <Diagnostics />
       </div>
+
+      {!PREVIEW_MODE && <RotatePrompt />}
 
       {PREVIEW_MODE && (
         <div className="hud-bottom-safe pointer-events-none absolute inset-x-0 bottom-0 flex justify-center">
