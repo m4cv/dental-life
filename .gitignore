@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+
+# Personal reference photographs and notes stay local (the GitHub repository is public)
+reference/
+.DS_Store
+npm-debug.log*
