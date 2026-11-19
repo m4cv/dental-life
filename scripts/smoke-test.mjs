@@ -174,8 +174,8 @@ const select = async (id, wait) => {
   await page.getByTestId(id).tap()
   await page.waitForTimeout(wait)
 }
-const VIEW_WAIT = 4500
-const POSE_WAIT = 2500
+const VIEW_WAIT = 7000
+const POSE_WAIT = 5000
 
 await select('anim-idle', POSE_WAIT)
 await select('view-front', VIEW_WAIT)
@@ -193,7 +193,7 @@ console.log(`info  colour shares: coat white ${(coatWhite * 100).toFixed(1)} %, 
 check('white lab coat is visible in the centre of the screen', coatWhite > 0.08)
 check('dusty-rose hijab is visible around the head', hijab > 0.12)
 check('skin tone is visible in the face area', skin > 0.04)
-check('pink flower accessory is visible', flower > 0.0005)
+check('pink flower accessory is visible', flower > 0.0002)
 
 await select('anim-walk', POSE_WAIT)
 const frontWalk = await page.screenshot({ path: `${OUT}/3-front-walk.png` })

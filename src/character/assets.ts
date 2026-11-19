@@ -16,6 +16,7 @@ import {
   Vector3,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { SKIRT_FLARE_MAX } from './animations/pose'
 import {
   COAT_COLLAR_Y,
   COAT_HEM_Y,
@@ -25,6 +26,7 @@ import {
   V_NECK_POLY,
   coatMesh,
   coatNormal,
+  coatRing,
   decalMesh,
   hijabDrapeMesh,
   hijabShellMesh,
@@ -44,7 +46,7 @@ import {
  * The trousers and shoes are NOT visible in the photos — they are a neutral choice.
  */
 export const CHAR_COLORS = {
-  skin: '#d9a688',
+  skin: '#dcae90',
   lip: '#b4636b',
   brow: '#2a1c17',
   iris: '#3a2418',
@@ -73,7 +75,33 @@ export function toGeometry(m: MeshData): BufferGeometry {
   g.setAttribute('position', new Float32BufferAttribute(m.positions, 3))
   if (m.uvs) g.setAttribute('uv', new Float32BufferAttribute(m.uvs, 2))
   g.setIndex(m.indices)
-  g.computeVertexNormals()
+  if (m.normals) g.setAttribute('normal', new Float32BufferAttribute(m.normals, 3))
+  else g.computeVertexNormals()
+  return g
+}
+
+/**
+ * Adds a "flare" morph target: the lower coat gets deeper (z) towards the hem, and is untouched
+ * at the waist, so the hem can open up when running without a step where it meets the torso.
+ * Morph influence 1 = full flare (1 + SKIRT_FLARE_MAX at the hem).
+ */
+function withFlareMorph(g: BufferGeometry): BufferGeometry {
+  const pos = g.getAttribute('position')
+  const out = new Float32Array(pos.count * 3)
+  const span = COAT_SPLIT_Y - COAT_HEM_Y
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i)
+    const y = pos.getY(i)
+    const z = pos.getZ(i)
+    const t = Math.min(Math.max((COAT_SPLIT_Y - y) / span, 0), 1)
+    const w = t * t * (3 - 2 * t)
+    const cz = coatRing(y).cz
+    out[i * 3] = x
+    out[i * 3 + 1] = y
+    out[i * 3 + 2] = cz + (z - cz) * (1 + SKIRT_FLARE_MAX * w)
+  }
+  g.morphAttributes.position = [new Float32BufferAttribute(out, 3)]
+  g.morphTargetsRelative = false
   return g
 }
 
@@ -162,9 +190,9 @@ function buildAssets() {
   const C = CHAR_COLORS
 
   // ---- face curves (head-centre coordinates) ----
-  const browL: [number, number][] = [[0.012, 0.047], [0.03, 0.057], [0.053, 0.047]]
+  const browL: [number, number][] = [[0.013, 0.04], [0.031, 0.0475], [0.054, 0.038]]
   const browR = browL.map(([x, y]) => [-x, y] as [number, number])
-  const lashL: [number, number][] = [[0.0185, 0.0125], [0.033, 0.0235], [0.0475, 0.0155], [0.053, 0.0185]]
+  const lashL: [number, number][] = [[0.0165, 0.0105], [0.0335, 0.0225], [0.0495, 0.0135], [0.0555, 0.017]]
   const lashR = lashL.map(([x, y]) => [-x, y] as [number, number])
   const upperLip: [number, number][] = [[-0.025, -0.0505], [-0.011, -0.0565], [0, -0.0555], [0.011, -0.0565], [0.025, -0.0505]]
   const lowerLip: [number, number][] = [[-0.021, -0.0545], [-0.01, -0.0625], [0, -0.065], [0.01, -0.0625], [0.021, -0.0545]]
@@ -181,9 +209,10 @@ function buildAssets() {
   ).map(([x, y]) => shellPoint(x, y, 0.002))
 
   const geo = {
-    unitSphere: new SphereGeometry(1, 28, 18),
+    unitSphere: new SphereGeometry(1, 32, 20),
+    unitSphereLo: new SphereGeometry(1, 16, 10),
     coatTorso: toGeometry(coatMesh(COAT_SPLIT_Y, COAT_COLLAR_Y)),
-    coatSkirt: toGeometry(coatMesh(COAT_HEM_Y, COAT_SPLIT_Y)),
+    coatSkirt: withFlareMorph(toGeometry(coatMesh(COAT_HEM_Y, COAT_SPLIT_Y))),
     hijabShell: toGeometry(hijabShellMesh()),
     hijabDrape: toGeometry(hijabDrapeMesh()),
     hijabRim: tube(rim, 0.0062, true, 64),
@@ -193,22 +222,24 @@ function buildAssets() {
     vNeck: toGeometry(decalMesh(V_NECK_POLY, 0.003)),
     pocketEdge: toGeometry(decalMesh(rectPoly(-0.1, 1.135, 0.098, 0.103), 0.003)),
     pocket: toGeometry(decalMesh(rectPoly(-0.1, 1.135, 0.09, 0.095), 0.0045)),
-    pinBlack: toGeometry(decalMesh(rectPoly(-0.123, 1.163, 0.046, 0.025), 0.0075, 0.003)),
-    badge: toGeometry(decalMesh(rectPoly(-0.078, 1.16, 0.03, 0.03), 0.0075, 0.003)),
+    pinBlack: toGeometry(decalMesh(rectPoly(-0.123, 1.163, 0.046, 0.025), 0.0075, 0.004)),
+    badge: toGeometry(decalMesh(rectPoly(-0.078, 1.16, 0.03, 0.03), 0.0075, 0.004)),
     placketUp: toGeometry(decalMesh(rectPoly(0, (COAT_SPLIT_Y + 1.17) / 2, 0.046, 1.17 - COAT_SPLIT_Y), 0.003)),
-    placketLow: toGeometry(decalMesh(rectPoly(0, (COAT_HEM_Y + COAT_SPLIT_Y) / 2, 0.046, COAT_SPLIT_Y - COAT_HEM_Y), 0.003)),
+    placketLow: withFlareMorph(
+      toGeometry(decalMesh(rectPoly(0, (COAT_HEM_Y + COAT_SPLIT_Y) / 2, 0.046, COAT_SPLIT_Y - COAT_HEM_Y), 0.003)),
+    ),
     strap: toGeometry(ribbonMesh(strapPath(), coatNormal, 0.03)),
     button: new CylinderGeometry(0.0125, 0.0125, 0.006, 18).rotateX(Math.PI / 2),
-    brow: [tube(onSkin(browL, 0.003), 0.0042, false, 16), tube(onSkin(browR, 0.003), 0.0042, false, 16)],
-    lash: [tube(onSkin(lashL, 0.0045), 0.0017, false, 16), tube(onSkin(lashR, 0.0045), 0.0017, false, 16)],
+    brow: [tube(onSkin(browL, 0.003), 0.0033, false, 16), tube(onSkin(browR, 0.003), 0.0033, false, 16)],
+    lash: [tube(onSkin(lashL, 0.0045), 0.0022, false, 16), tube(onSkin(lashR, 0.0045), 0.0022, false, 16)],
     upperLip: tube(onSkin(upperLip, 0.0015), 0.0032, false, 16),
     lowerLip: tube(onSkin(lowerLip, 0.0015), 0.0042, false, 16),
     mouthLine: tube(onSkin(mouthLine, 0.0018), 0.0012, false, 16),
     thigh: new CylinderGeometry(0.075, 0.062, 0.4, 18),
     shin: new CylinderGeometry(0.058, 0.043, 0.37, 18),
-    upperArm: new CapsuleGeometry(0.057, 0.17, 6, 16),
-    foreArm: new CapsuleGeometry(0.05, 0.15, 6, 16),
-    cuff: new CylinderGeometry(0.056, 0.054, 0.034, 20),
+    upperArm: new CapsuleGeometry(0.05, 0.18, 6, 14),
+    foreArm: new CapsuleGeometry(0.045, 0.16, 6, 14),
+    cuff: new CylinderGeometry(0.05, 0.048, 0.03, 18),
     watchBand: new TorusGeometry(0.034, 0.0045, 8, 20),
     watchFace: new CylinderGeometry(0.014, 0.014, 0.006, 16),
     sole: new RoundedBoxGeometry(0.09, 0.016, 0.24, 2, 0.006),

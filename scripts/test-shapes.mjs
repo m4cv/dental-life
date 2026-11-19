@@ -39,6 +39,20 @@ check('coat meshes are well-formed', finite(torso) && finite(skirt))
 const coatCenter = (g) => { const r = COAT_RINGS.reduce((p, q) => (Math.abs(q.y - g[1]) < Math.abs(p.y - g[1]) ? q : p)); return [0, g[1], r.cz] }
 check('coat faces outward', outwardShare(torso, coatCenter) > 0.99 && outwardShare(skirt, coatCenter) > 0.99,
   `${(outwardShare(torso, coatCenter) * 100).toFixed(1)} % / ${(outwardShare(skirt, coatCenter) * 100).toFixed(1)} %`)
+{
+  // analytic normals: unit length, outward, and identical on both halves at the waist ring
+  const nOk = (m) => m.normals && m.normals.length === (m.positions.length) && Array.from({ length: m.normals.length / 3 }, (_, k) => Math.hypot(m.normals[k * 3], m.normals[k * 3 + 1], m.normals[k * 3 + 2])).every((l) => Math.abs(l - 1) < 1e-6)
+  check('coat normals are unit length', nOk(torso) && nOk(skirt))
+  const cols = 48
+  let worst = 0
+  for (let j = 0; j < cols; j++) {
+    const a = torso.normals.slice(j * 3, j * 3 + 3)
+    const rows = skirt.positions.length / 3 / cols - 1
+    const b = skirt.normals.slice((rows * cols + j) * 3, (rows * cols + j) * 3 + 3)
+    worst = Math.max(worst, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+  }
+  check('torso and hem normals match at the waist (no seam)', worst < 1e-9, `max diff ${worst.toExponential(1)}`)
+}
 check('coat parts meet at the waist', Math.abs(torso.positions[1] - COAT_SPLIT_Y) < 1e-9 && Math.abs(skirt.positions[skirt.positions.length - 2] - COAT_SPLIT_Y) < 1e-9)
 
 // --- hijab shell ------------------------------------------------------------------------------

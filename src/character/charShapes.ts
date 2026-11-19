@@ -13,6 +13,8 @@ export interface MeshData {
   positions: number[]
   indices: number[]
   uvs?: number[]
+  /** Analytic vertex normals (used where neighbouring meshes must shade identically). */
+  normals?: number[]
 }
 
 export type Vec3 = [number, number, number]
@@ -124,12 +126,13 @@ export const COAT_RINGS: readonly Ring[] = [
   { y: 0.95, rx: 0.17, rz: 0.128, cz: 0.008 },
   { y: 1.05, rx: 0.176, rz: 0.13, cz: 0.012 },
   { y: 1.15, rx: 0.188, rz: 0.138, cz: 0.018 },
-  { y: 1.25, rx: 0.192, rz: 0.136, cz: 0.012 },
-  { y: 1.32, rx: 0.196, rz: 0.128, cz: 0.004 },
-  { y: 1.35, rx: 0.178, rz: 0.115, cz: 0.0 },
-  { y: 1.378, rx: 0.142, rz: 0.095, cz: 0.0 },
-  { y: 1.398, rx: 0.098, rz: 0.075, cz: 0.0 },
-  { y: 1.41, rx: 0.066, rz: 0.058, cz: 0.0 },
+  { y: 1.25, rx: 0.19, rz: 0.134, cz: 0.012 },
+  { y: 1.3, rx: 0.192, rz: 0.128, cz: 0.006 },
+  { y: 1.335, rx: 0.178, rz: 0.118, cz: 0.002 },
+  { y: 1.36, rx: 0.15, rz: 0.104, cz: 0.0 },
+  { y: 1.382, rx: 0.112, rz: 0.084, cz: 0.0 },
+  { y: 1.4, rx: 0.082, rz: 0.066, cz: 0.0 },
+  { y: 1.412, rx: 0.064, rz: 0.056, cz: 0.0 },
 ]
 
 /** Height where the coat splits into the torso part (above) and the swinging hem part (below). */
@@ -204,10 +207,14 @@ function buildGrid(
   return { positions, indices }
 }
 
-/** Coat body between two heights (use COAT_SPLIT_Y to split torso part and hem part). */
+/**
+ * Coat body between two heights (use COAT_SPLIT_Y to split torso part and hem part).
+ * Normals come from the ring profile, not from the triangles, so the two halves shade
+ * identically where they meet at the waist (no visible seam).
+ */
 export function coatMesh(yMin: number, yMax: number, cols = 48): MeshData {
   const rows = Math.max(2, Math.ceil((yMax - yMin) / 0.02))
-  return buildGrid(
+  const mesh = buildGrid(
     rows,
     cols,
     true,
@@ -219,6 +226,32 @@ export function coatMesh(yMin: number, yMax: number, cols = 48): MeshData {
     },
     false,
   )
+  const normals: number[] = []
+  const e = 0.002
+  for (let i = 0; i <= rows; i++) {
+    const y = yMin + ((yMax - yMin) * i) / rows
+    const a = coatRing(y - e)
+    const b = coatRing(y + e)
+    const r = coatRing(y)
+    const drx = (b.rx - a.rx) / (2 * e)
+    const drz = (b.rz - a.rz) / (2 * e)
+    const dcz = (b.cz - a.cz) / (2 * e)
+    for (let j = 0; j < cols; j++) {
+      const th = (j / cols) * TAU
+      const st = Math.sin(th)
+      const ct = Math.cos(th)
+      const tth: Vec3 = [r.rx * ct, 0, -r.rz * st]
+      const ty: Vec3 = [drx * st, 1, dcz + drz * ct]
+      const n: Vec3 = [
+        tth[1] * ty[2] - tth[2] * ty[1],
+        tth[2] * ty[0] - tth[0] * ty[2],
+        tth[0] * ty[1] - tth[1] * ty[0],
+      ]
+      const l = Math.hypot(n[0], n[1], n[2]) || 1
+      normals.push(n[0] / l, n[1] / l, n[2] / l)
+    }
+  }
+  return { ...mesh, normals }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -271,16 +304,16 @@ const DRAPE_TOP_Y = 1.5
 
 // Chin-tuck profile (absolute coordinates). The front stays behind the skin so the chin shows.
 const TUCK_Y = [1.4, 1.42, 1.44, 1.47, 1.5]
-const TUCK_RX = [0.13, 0.114, 0.1, 0.094, 0.092]
+const TUCK_RX = [0.108, 0.1, 0.096, 0.093, 0.092]
 const TUCK_FRONT = [0.09, 0.06, 0.072, 0.08, 0.082]
 const TUCK_BACK = [-0.085, -0.082, -0.09, -0.096, -0.098]
 
-/** Cross-section of the hijab drape at height y. Always stands off the coat by 1.8–2.8 cm. */
+/** Cross-section of the hijab drape at height y. Always stands off the coat by 1.4–2 cm. */
 export function drapeRing(y: number): { rx: number; front: number; back: number } {
   const c = coatRing(Math.min(y, COAT_COLLAR_Y))
-  const gap = 0.018 + 0.01 * smooth((1.4 - y) / 0.12)
+  const gap = 0.014 + 0.006 * smooth((1.4 - y) / 0.12)
   const hug = { rx: c.rx + gap, front: c.cz + c.rz + gap, back: c.cz - c.rz - gap }
-  const w = smooth((y - 1.385) / 0.03)
+  const w = smooth((y - 1.39) / 0.03)
   return {
     rx: lerp(hug.rx, hermite(TUCK_Y, TUCK_RX, y), w),
     front: lerp(hug.front, hermite(TUCK_Y, TUCK_FRONT, y), w),
@@ -332,7 +365,7 @@ function insidePolygon(poly: readonly Vec2[], x: number, y: number): boolean {
  * Flat shape projected onto the coat's front surface, `offset` metres proud of it.
  * UVs map the polygon's bounding box to 0..1 so a texture can be applied.
  */
-export function decalMesh(poly: readonly Vec2[], offset: number, step = 0.006): MeshData {
+export function decalMesh(poly: readonly Vec2[], offset: number, step = 0.01): MeshData {
   const xs = poly.map((p) => p[0])
   const ys = poly.map((p) => p[1])
   const x0 = Math.min(...xs)
@@ -499,7 +532,7 @@ export function strapPath(offset = 0.012): Vec3[] {
       front(0.005, 1.17),
       front(0.09, 1.25),
       front(0.15, 1.31),
-      [0.165, 1.356, 0.0],
+      [0.145, 1.352, 0.0],
       back(0.15, 1.31),
       back(0.08, 1.23),
       back(-0.01, 1.13),

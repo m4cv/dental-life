@@ -17,12 +17,15 @@ export const RIG = {
   ankleY: 0.08,
   waistY: 0.95,
   shoulderY: 1.3,
-  shoulderX: 0.18,
+  shoulderX: 0.175,
   upperArm: 0.28,
   foreArm: 0.25,
   neckY: 1.42,
   headCenterY: 1.52,
 } as const
+
+/** Extra hem depth at full stride, as a fraction (1.45× deeper at a run). */
+export const SKIRT_FLARE_MAX = 0.45
 
 export const WALK_SPEED = 1.45
 export const RUN_SPEED = 3.6
@@ -62,7 +65,7 @@ export interface Pose {
   /** Coat hem swing, forward positive (rad). */
   skirtPitch: number
   skirtRoll: number
-  /** Depth multiplier for the coat hem so legs never poke through (>= 1). */
+  /** Coat hem depth multiplier, 1 … 1 + SKIRT_FLARE_MAX, so legs never poke through at a run. */
   skirtFlare: number
   bagRoll: number
   bagPitch: number
@@ -170,7 +173,7 @@ export function solvePose(pose: Pose, speed: number, phase: number, time: number
   const armAmp = mix3(0, 0.34, 0.62, u)
   const elbowBase = mix3(0.16, 0.2, 1.35, u)
   const elbowSwing = mix3(0, 0.45, 0.35, u)
-  const abduct = mix3(0.07, 0.09, 0.05, u)
+  const abduct = mix3(0.04, 0.05, 0.03, u)
   const lean = mix3(0, 0.03, 0.2, u)
   const hipsTwist = mix3(0, 0.09, 0.2, u)
   const sway = mix3(0, 0.022, 0.01, u)
@@ -217,8 +220,8 @@ export function solvePose(pose: Pose, speed: number, phase: number, time: number
 
   // Coat hem: flare and tilt so the leading knee never pokes through the fabric.
   const maxFwd = Math.max(pose.legL.thigh, pose.legR.thigh, 0)
-  const stride = clamp(Math.max(Math.abs(pose.legL.thigh), Math.abs(pose.legR.thigh)) / 0.55, 0, 1)
-  pose.skirtFlare = 1 + 0.45 * stride
+  const reach = Math.max(Math.abs(pose.legL.thigh), Math.abs(pose.legR.thigh))
+  pose.skirtFlare = 1 + SKIRT_FLARE_MAX * clamp((reach - 0.28) / 0.34, 0, 1)
   pose.skirtPitch = 0.35 * maxFwd
   pose.skirtRoll = -0.5 * pose.torsoRoll + 0.012 * Math.sin(time * 0.9) * idleW
 

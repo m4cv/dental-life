@@ -1,16 +1,33 @@
 import { useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { Group, Material } from 'three'
+import type { Group, Material, Mesh } from 'three'
 import { getCharacterAssets } from './assets'
-import { HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
-import { RIG, advancePhase, createPose, solvePose } from './animations/pose'
+import { COAT_HEM_Y, COAT_SPLIT_Y, HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
+import { RIG, SKIRT_FLARE_MAX, advancePhase, createPose, solvePose } from './animations/pose'
 
 type V3 = [number, number, number]
 
 /** Flattened sphere helper: every soft body part in the character is an ellipsoid. */
-function Ell({ mat, p = [0, 0, 0], s, r, shadow = true }: { mat: Material; p?: V3; s: V3; r?: V3; shadow?: boolean }) {
+function Ell({
+  mat,
+  p = [0, 0, 0],
+  s,
+  r,
+  shadow = true,
+  hi = false,
+}: {
+  mat: Material
+  p?: V3
+  s: V3
+  r?: V3
+  shadow?: boolean
+  /** Use the finer sphere (only the head, which is seen up close). */
+  hi?: boolean
+}) {
   const { geo } = getCharacterAssets()
-  return <mesh geometry={geo.unitSphere} material={mat} position={p} scale={s} rotation={r} castShadow={shadow} />
+  return (
+    <mesh geometry={hi ? geo.unitSphere : geo.unitSphereLo} material={mat} position={p} scale={s} rotation={r} castShadow={shadow} />
+  )
 }
 
 /** Five-petal fabric flower (hijab accessory and the small pin on the coat). Faces +z. */
@@ -38,15 +55,15 @@ function Flower({ position, yaw, scale = 1 }: { position: V3; yaw: number; scale
 function Eye({ side, lidRef }: { side: 1 | -1; lidRef: RefObject<Group | null> }) {
   const { mat } = getCharacterAssets()
   const x = 0.033
-  const y = 0.014
+  const y = 0.012
   return (
     <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.22, 0]}>
-      <Ell mat={mat.sclera} s={[0.0145, 0.0085, 0.004]} shadow={false} />
-      <Ell mat={mat.iris} p={[0, 0, 0.0028]} s={[0.0068, 0.0068, 0.003]} shadow={false} />
-      <Ell mat={mat.pupil} p={[0, 0, 0.0042]} s={[0.0034, 0.0034, 0.0016]} shadow={false} />
-      <Ell mat={mat.glint} p={[0.0022, 0.0022, 0.0053]} s={[0.0013, 0.0013, 0.001]} shadow={false} />
-      <group ref={lidRef} position={[0, 0.0092, 0.0016]} scale={[1, 0.001, 1]}>
-        <Ell mat={mat.skin} p={[0, -0.0092, 0]} s={[0.0158, 0.0098, 0.0058]} shadow={false} />
+      <Ell mat={mat.sclera} s={[0.0165, 0.0095, 0.0042]} shadow={false} />
+      <Ell mat={mat.iris} p={[0, 0, 0.003]} s={[0.0079, 0.0079, 0.003]} shadow={false} />
+      <Ell mat={mat.pupil} p={[0, 0, 0.0045]} s={[0.004, 0.004, 0.0016]} shadow={false} />
+      <Ell mat={mat.glint} p={[0.0026, 0.0026, 0.0056]} s={[0.0015, 0.0015, 0.001]} shadow={false} />
+      <group ref={lidRef} position={[0, 0.0105, 0.0016]} scale={[1, 0.001, 1]}>
+        <Ell mat={mat.skin} p={[0, -0.0105, 0]} s={[0.0178, 0.0112, 0.006]} shadow={false} />
       </group>
     </group>
   )
@@ -64,14 +81,14 @@ function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<G
 
   return (
     <>
-      <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} />
+      <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} hi />
       {/* nose */}
-      <Ell mat={mat.skin} p={[0, 0, skinZ(0, 0) + 0.0005]} s={[0.0065, 0.02, 0.0055]} shadow={false} />
-      <Ell mat={mat.skin} p={[0, -0.024, skinZ(0, -0.024) + 0.0035]} s={[0.0105, 0.0095, 0.0105]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.002, skinZ(0, -0.002) + 0.0005]} s={[0.0055, 0.015, 0.0046]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.0235, skinZ(0, -0.0235) + 0.0028]} s={[0.0088, 0.0078, 0.0088]} shadow={false} />
       {[1, -1].map((k) => (
         <group key={k}>
-          <Ell mat={mat.skin} p={[k * 0.0085, -0.0265, skinZ(0.0085, -0.0265) + 0.0005]} s={[0.0062, 0.0055, 0.006]} shadow={false} />
-          <Ell mat={mat.pupil} p={[k * 0.0045, -0.0318, skinZ(0.0045, -0.0318) + 0.0038]} s={[0.0024, 0.0016, 0.002]} shadow={false} />
+          <Ell mat={mat.skin} p={[k * 0.0078, -0.0255, skinZ(0.0078, -0.0255) + 0.0004]} s={[0.0052, 0.0047, 0.005]} shadow={false} />
+          <Ell mat={mat.pupil} p={[k * 0.0042, -0.0305, skinZ(0.0042, -0.0305) + 0.0032]} s={[0.002, 0.0013, 0.0017]} shadow={false} />
           <mesh position={[k * 0.047, -0.028, skinZ(0.047, -0.028) + 0.0025]} rotation={[0, k * 0.6, 0]} material={mat.blush}>
             <circleGeometry args={[0.019, 20]} />
           </mesh>
@@ -113,10 +130,10 @@ function Arm({
         <group position={[0, -RIG.foreArm, 0]}>
           {/* wrist, palm, fingers, thumb */}
           <mesh position={[0, -0.012, 0]} material={mat.skin}>
-            <cylinderGeometry args={[0.026, 0.026, 0.06, 12]} />
+            <cylinderGeometry args={[0.024, 0.024, 0.06, 12]} />
           </mesh>
-          <Ell mat={mat.skin} p={[0, -0.06, 0]} s={[0.028, 0.043, 0.014]} />
-          <Ell mat={mat.skin} p={[0, -0.115, 0.003]} s={[0.026, 0.034, 0.011]} />
+          <Ell mat={mat.skin} p={[0, -0.06, 0]} s={[0.03, 0.046, 0.015]} />
+          <Ell mat={mat.skin} p={[0, -0.118, 0.003]} s={[0.027, 0.037, 0.012]} />
           <Ell mat={mat.skin} p={[-side * 0.027, -0.07, 0.012]} s={[0.0105, 0.026, 0.0105]} r={[0, 0, side * 0.25]} />
           {side === -1 && (
             <group position={[0, -0.015, 0]}>
@@ -191,9 +208,22 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
   const elbowR = useRef<Group>(null)
   const lidL = useRef<Group>(null)
   const lidR = useRef<Group>(null)
+  const skirtMesh = useRef<Mesh | null>(null)
+  const placketMesh = useRef<Mesh | null>(null)
+  const lowerButtonRefs = useRef<(Mesh | null)[]>([])
 
   const state = useRef({ speed: 0, phase: 0, time: 0 })
   const pose = useMemo(() => createPose(), [])
+
+  const upperButtons = [1.165, 1.045]
+  const lowerButtonInfo = useMemo(
+    () =>
+      [0.925, 0.805, 0.685].map((y) => {
+        const t = Math.min(Math.max((COAT_SPLIT_Y - y) / (COAT_SPLIT_Y - COAT_HEM_Y), 0), 1)
+        return { y, cz: coatRing(y).cz, z: coatFrontZ(0, y) + 0.0075, w: t * t * (3 - 2 * t) }
+      }),
+    [],
+  )
 
   // Surface yaw for the little flower pin on the coat.
   const pin = useMemo(() => {
@@ -218,7 +248,16 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
     torsoRef.current?.rotation.set(pose.torsoPitch, pose.torsoYaw, pose.torsoRoll)
     headRef.current?.rotation.set(pose.headPitch, pose.headYaw, pose.headRoll)
     skirtRef.current?.rotation.set(-pose.skirtPitch, 0, pose.skirtRoll)
-    skirtRef.current?.scale.set(1, 1, pose.skirtFlare)
+
+    // Hem flare is a morph target (see assets.ts); the lower buttons follow the same mapping.
+    const flare = (pose.skirtFlare - 1) / SKIRT_FLARE_MAX
+    for (const mesh of [skirtMesh.current, placketMesh.current]) {
+      if (mesh?.morphTargetInfluences) mesh.morphTargetInfluences[0] = flare
+    }
+    lowerButtonRefs.current.forEach((button, i) => {
+      const b = lowerButtonInfo[i]
+      if (button && b) button.position.z = b.cz + (b.z - b.cz) * (1 + SKIRT_FLARE_MAX * flare * b.w)
+    })
     bagRef.current?.rotation.set(pose.bagPitch, 0, pose.bagRoll)
 
     // Hanging segments swing "forward" with a negative x rotation.
@@ -239,8 +278,6 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
     lidR.current?.scale.set(1, lid, 1)
   })
 
-  const upperButtons = [1.165, 1.045]
-  const lowerButtons = [0.925, 0.805, 0.685]
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
@@ -252,10 +289,35 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
 
           <group ref={skirtRef}>
             <group position={[0, -RIG.hipY, 0]}>
-              <mesh geometry={geo.coatSkirt} material={mat.coat} castShadow receiveShadow />
-              <mesh geometry={geo.placketLow} material={mat.coatEdge} />
-              {lowerButtons.map((y) => (
-                <mesh key={y} geometry={geo.button} material={mat.button} position={[0, y, coatFrontZ(0, y) + 0.0075]} castShadow />
+              <mesh
+                ref={(m) => {
+                  skirtMesh.current = m
+                  m?.updateMorphTargets()
+                }}
+                geometry={geo.coatSkirt}
+                material={mat.coat}
+                castShadow
+                receiveShadow
+              />
+              <mesh
+                ref={(m) => {
+                  placketMesh.current = m
+                  m?.updateMorphTargets()
+                }}
+                geometry={geo.placketLow}
+                material={mat.coatEdge}
+              />
+              {lowerButtonInfo.map((b, i) => (
+                <mesh
+                  key={b.y}
+                  ref={(m) => {
+                    lowerButtonRefs.current[i] = m
+                  }}
+                  geometry={geo.button}
+                  material={mat.button}
+                  position={[0, b.y, b.z]}
+                  castShadow
+                />
               ))}
             </group>
           </group>
