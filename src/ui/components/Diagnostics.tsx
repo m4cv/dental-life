@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_QUALITY, GRAPHICS_PROFILES } from '@/config/graphics'
 import { useAppStore } from '@/state/useAppStore'
+import { usePlayerStore } from '@/state/usePlayerStore'
 
 function useViewportSize() {
   const read = () => ({ w: window.innerWidth, h: window.innerHeight })
@@ -22,6 +23,7 @@ function useViewportSize() {
 /** Small read-out for testing on a real phone: frame rate, pixel ratio and viewport. */
 export function Diagnostics() {
   const fps = useAppStore((state) => state.fps)
+  const player = usePlayerStore()
   const { w, h } = useViewportSize()
   const deviceDpr = window.devicePixelRatio
   const renderDpr = Math.min(deviceDpr, GRAPHICS_PROFILES[DEFAULT_QUALITY].maxDpr)
@@ -38,6 +40,11 @@ export function Diagnostics() {
       <div>
         {w}×{h}
       </div>
+      {player.active && (
+        <div data-testid="player-debug">
+          x {player.x.toFixed(1)} z {player.z.toFixed(1)} · {player.speed.toFixed(1)} m/s · cam {player.camDeg}° {player.camDist.toFixed(1)} m
+        </div>
+      )}
     </div>
   )
 }

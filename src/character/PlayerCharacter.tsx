@@ -174,8 +174,8 @@ function Leg({
 }
 
 export interface PlayerCharacterProps {
-  /** Target ground speed in m/s: 0 = idle, ~1.45 = walk, ~3.6 = run. Blended smoothly. */
-  speed: number
+  /** Target ground speed in m/s: 0 = idle, ~1.45 = walk, ~3.6 = run. Blended smoothly. A ref lets a controller change it every frame without re-rendering. */
+  speed: number | { current: number }
   position?: V3
   /** Heading in radians about +y (0 faces +z). */
   rotationY?: number
@@ -236,8 +236,9 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1)
     const st = state.current
-    st.speed += (speed - st.speed) * (1 - Math.exp(-6 * dt))
-    if (Math.abs(speed - st.speed) < 0.005) st.speed = speed
+    const target = typeof speed === 'number' ? speed : speed.current
+    st.speed += (target - st.speed) * (1 - Math.exp(-6 * dt))
+    if (Math.abs(target - st.speed) < 0.005) st.speed = target
     st.phase = advancePhase(st.phase, st.speed, dt)
     st.time += dt
     solvePose(pose, st.speed, st.phase, st.time)

@@ -1,8 +1,41 @@
+import { useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
 import { DEFAULT_QUALITY, GRAPHICS_PROFILES } from '@/config/graphics'
 import { PALETTE } from '@/config/palette'
+import { BENCH_SIZE, BENCH_X, BENCH_Z, BUILDINGS, PALM } from './courtyardLayout'
 
 type Vec3 = [number, number, number]
+
+/** Paving with a faint 2 m tile grid, so walking across it is visible. */
+function usePavingTexture() {
+  return useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = c.height = 128
+    const ctx = c.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = PALETTE.paving
+      ctx.fillRect(0, 0, 128, 128)
+      ctx.strokeStyle = 'rgba(120,84,76,0.35)'
+      ctx.lineWidth = 4
+      ctx.strokeRect(0, 0, 128, 128)
+      ctx.strokeStyle = 'rgba(120,84,76,0.12)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(64, 0)
+      ctx.lineTo(64, 128)
+      ctx.moveTo(0, 64)
+      ctx.lineTo(128, 64)
+      ctx.stroke()
+    }
+    const t = new CanvasTexture(c)
+    t.wrapS = t.wrapT = RepeatWrapping
+    t.repeat.set(12, 11)
+    t.colorSpace = SRGBColorSpace
+    t.anisotropy = 4
+    return t
+  }, [])
+}
 
 /** Beige block with a blue trim band — echoes the campus facade in the reference photos. */
 function Block({ position, size }: { position: Vec3; size: Vec3 }) {
@@ -25,7 +58,7 @@ function Palm({ position }: { position: Vec3 }) {
   return (
     <group position={position}>
       <mesh position={[0, 2.5, 0]} castShadow>
-        <cylinderGeometry args={[0.22, 0.34, 5, 8]} />
+        <cylinderGeometry args={[0.22, PALM.trunkRadius, PALM.height, 8]} />
         <meshStandardMaterial color={PALETTE.trunk} roughness={1} />
       </mesh>
       {Array.from({ length: 9 }, (_, i) => (
@@ -42,8 +75,8 @@ function Palm({ position }: { position: Vec3 }) {
 
 function Bench({ position }: { position: Vec3 }) {
   return (
-    <mesh position={[position[0], 0.25, position[2]]} castShadow>
-      <boxGeometry args={[0.6, 0.45, 1.8]} />
+    <mesh position={[position[0], BENCH_SIZE[1] / 2 + 0.025, position[2]]} castShadow>
+      <boxGeometry args={BENCH_SIZE} />
       <meshStandardMaterial color={PALETTE.blue} roughness={0.6} />
     </mesh>
   )
@@ -54,6 +87,7 @@ function Bench({ position }: { position: Vec3 }) {
  * and the Stage 2 character showcase so the character is judged in the same light and setting.
  */
 export function CourtyardBackdrop() {
+  const paving = usePavingTexture()
   return (
     <>
       {/* ground, paving and lawns */}
@@ -63,7 +97,7 @@ export function CourtyardBackdrop() {
       </mesh>
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[24, 0.04, 22]} />
-        <meshStandardMaterial color={PALETTE.paving} roughness={1} />
+        <meshStandardMaterial map={paving} roughness={1} />
       </mesh>
       <mesh position={[-6, 0.06, 4]} receiveShadow>
         <boxGeometry args={[9, 0.06, 8]} />
@@ -75,13 +109,13 @@ export function CourtyardBackdrop() {
       </mesh>
 
       {/* enclosing buildings (open to the south, like a courtyard) */}
-      <Block position={[0, 0, -14]} size={[36, 12, 6]} />
-      <Block position={[-15, 0, 0]} size={[6, 12, 22]} />
-      <Block position={[15, 0, 0]} size={[6, 12, 22]} />
+      {BUILDINGS.map((b, i) => (
+        <Block key={i} position={b.position} size={b.size} />
+      ))}
 
-      <Palm position={[-1.5, 0, -3]} />
-      {[-7, -2.5, 2.5, 7].map((z) => (
-        <Bench key={z} position={[11, 0, z]} />
+      <Palm position={PALM.position} />
+      {BENCH_Z.map((z) => (
+        <Bench key={z} position={[BENCH_X, 0, z]} />
       ))}
     </>
   )

@@ -124,7 +124,8 @@ async function contactSheet(shots, columns) {
   return tools.screenshot({ type: 'jpeg', quality: 62, fullPage: true })
 }
 
-await page.goto(URL)
+// Stage 2 character inspector (still available at ?preview=1): regression coverage for the character
+await page.goto(`${URL}?preview=1`)
 await page.getByRole('heading', { name: 'Dental Life' }).waitFor()
 await page.screenshot({ path: `${OUT}/1-menu.png` })
 check('menu renders', true)
@@ -225,6 +226,166 @@ const faceJpeg = await (async () => {
   return tools.screenshot({ type: 'jpeg', quality: 80, fullPage: true })
 })()
 printJpeg('face', faceJpeg.toString('base64'))
+
+// =============================================================================================
+// Stage 3: the playable scene and the touch controls, driven with real multi-touch events
+// =============================================================================================
+console.log('\n--- Stage 3: touch controls ---')
+// Software rendering is slow, so this part runs at 1x pixel density (4x fewer pixels) to get more
+// simulated seconds per real second. The simulation clamps each frame to 0.5 s, so slow frames
+// still advance the game.
+const context3 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
+const p3 = await context3.newPage()
+p3.on('console', (m) => {
+  if (m.type() === 'error') errors.push(`[stage3] ${m.text()}`)
+})
+p3.on('pageerror', (e) => errors.push(`[stage3] pageerror: ${e.message}`))
+const cdp = await context3.newCDPSession(p3)
+const touchEvent = (type, points) =>
+  cdp.send('Input.dispatchTouchEvent', {
+    type,
+    touchPoints: points.map(([x, y, id]) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 })),
+  })
+
+const readDebug = async () => {
+  const el = p3.getByTestId('player-debug')
+  if ((await el.count()) === 0) return null
+  const text = await el.innerText()
+  const m = text.match(/x (-?[\d.]+) z (-?[\d.]+) · ([\d.]+) m\/s · cam (\d+)° ([\d.]+) m/)
+  return m ? { x: +m[1], z: +m[2], speed: +m[3], cam: +m[4], dist: +m[5], text } : null
+}
+const until = async (pred, ms) => {
+  const t0 = Date.now()
+  let d = null
+  while (Date.now() - t0 < ms) {
+    d = await readDebug()
+    if (d && pred(d)) return d
+    await p3.waitForTimeout(300)
+  }
+  return d
+}
+const fmt = (d) => (d ? d.text.replace(/\s+/g, ' ') : 'no read-out')
+const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
+
+await p3.goto(URL)
+await p3.getByRole('heading', { name: 'Dental Life' }).waitFor()
+await p3.getByRole('button', { name: 'New Game' }).tap()
+await p3.locator('canvas').waitFor({ timeout: 30000 })
+await p3.getByTestId('touch-controls').waitFor({ timeout: 15000 })
+const have = async (id) => (await p3.getByTestId(id).count()) === 1
+check(
+  'touch overlay, joystick, Run and Recenter buttons exist',
+  (await have('touch-controls')) && (await have('joystick')) && (await have('btn-run')) && (await have('btn-recenter')),
+)
+check('the Stage 2 preview panel is not shown in the playable game', (await p3.getByTestId('char-preview').count()) === 0)
+check('first-run hint is visible', await have('controls-hint'))
+const runBox = await p3.getByTestId('btn-run').boundingBox()
+const recBox = await p3.getByTestId('btn-recenter').boundingBox()
+check('Run and Recenter are at least 44 px', !!runBox && !!recBox && runBox.width >= 44 && runBox.height >= 44 && recBox.width >= 44 && recBox.height >= 44, `${runBox?.width}px / ${recBox?.width}px`)
+const joyBox = await p3.getByTestId('joystick').boundingBox()
+check('joystick rests in the bottom-left corner', !!joyBox && joyBox.x < 195 && joyBox.y > 844 / 2, `${joyBox?.x?.toFixed(0)}, ${joyBox?.y?.toFixed(0)}`)
+
+const start = await until((d) => Math.abs(d.z - 8) < 0.3 && d.cam === 180, 60000)
+check('player starts at the spawn point facing north (x 0, z 8, camera 180°)', !!start && Math.abs(start.x) < 0.3 && Math.abs(start.z - 8) < 0.3 && start.cam === 180 && start.speed < 0.2, fmt(start))
+await p3.waitForTimeout(1500)
+const shotStart = await p3.screenshot({ path: `${OUT}/s3-1-start.png` })
+
+// ---- 1. walk: left thumb on the joystick, pushed forward ----
+await touchEvent('touchStart', [[90, 640, 1]])
+await touchEvent('touchMove', [[90, 610, 1]])
+await touchEvent('touchMove', [[90, 570, 1]])
+check('joystick becomes active under the thumb', (await p3.getByTestId('joystick').getAttribute('data-active')) === 'true')
+const walking = await until((d) => d.z < start.z - 1.5, 90000)
+check('stick forward walks the character north (-z), straight', !!walking && walking.z < start.z - 1.5 && Math.abs(walking.x - start.x) < 0.4, fmt(walking))
+const walkSpeed = await until((d) => d.speed >= 1.2, 20000)
+check('walking speed is about 1.45 m/s', !!walkSpeed && walkSpeed.speed >= 1.2 && walkSpeed.speed <= 1.7, fmt(walkSpeed))
+const shotWalk = await p3.screenshot({ path: `${OUT}/s3-2-walking.png` })
+check('the scene changes while walking', Buffer.compare(shotStart, shotWalk) !== 0 && (await diffShare(shotStart, shotWalk)) > 0.01)
+
+// ---- 2. release: joystick returns, she stops ----
+await touchEvent('touchEnd', [])
+check('joystick returns to rest on release', (await p3.getByTestId('joystick').getAttribute('data-active')) === 'false')
+const stopped = await until((d) => d.speed < 0.2, 40000)
+check('she stops after the thumb is lifted', !!stopped && stopped.speed < 0.2, fmt(stopped))
+
+// ---- 3. run toggle ----
+await p3.getByTestId('btn-run').tap()
+check('Run button toggles on', (await p3.getByTestId('btn-run').getAttribute('aria-pressed')) === 'true')
+await touchEvent('touchStart', [[90, 640, 1]])
+await touchEvent('touchMove', [[90, 570, 1]])
+const running = await until((d) => d.speed >= 3.2, 90000)
+check('running reaches about 3.6 m/s', !!running && running.speed >= 3.2 && running.speed <= 3.75, fmt(running))
+const shotRun = await p3.screenshot({ path: `${OUT}/s3-3-running.png` })
+
+// ---- 4. collision: keep pushing north into the building ----
+const wall = await until((d) => d.z < -10.4 && d.speed < 0.3, 120000)
+check('the north building stops her (z about -10.7) while the stick is still held', !!wall && wall.z > -10.9 && wall.z < -10.5 && wall.speed < 0.3, fmt(wall))
+await touchEvent('touchEnd', [])
+await p3.getByTestId('btn-run').tap()
+check('Run button toggles off', (await p3.getByTestId('btn-run').getAttribute('aria-pressed')) === 'false')
+const shotWall = await p3.screenshot({ path: `${OUT}/s3-4-wall.png` })
+
+// ---- 5. camera drag on the right half ----
+const camBefore = (await readDebug()).cam
+await touchEvent('touchStart', [[330, 300, 5]])
+for (const x of [310, 290, 270, 250, 230]) await touchEvent('touchMove', [[x, 300, 5]])
+await touchEvent('touchEnd', [])
+const turned = await until((d) => angleDiff(d.cam, camBefore) > 20, 30000)
+check('dragging the right half turns the camera by the drag distance (about 31°)', !!turned && angleDiff(turned.cam, camBefore) > 20 && angleDiff(turned.cam, camBefore) < 45, `${camBefore}° → ${turned?.cam}°`)
+const shotLook = await p3.screenshot({ path: `${OUT}/s3-5-look.png` })
+
+// ---- 6. recenter ----
+await p3.getByTestId('btn-recenter').tap()
+const centred = await until((d) => angleDiff(d.cam, 180) < 6, 30000)
+check('Recenter swings the camera back behind her', !!centred && angleDiff(centred.cam, 180) < 6, fmt(centred))
+
+// ---- 7. camera-relative steering: turn the camera, push forward, she slides along the wall ----
+await touchEvent('touchStart', [[330, 300, 5]])
+for (const x of [310, 290, 270, 250, 230]) await touchEvent('touchMove', [[x, 300, 5]])
+await touchEvent('touchEnd', [])
+await until((d) => angleDiff(d.cam, 180) > 20, 30000)
+const slideStart = await readDebug()
+await touchEvent('touchStart', [[90, 640, 1]])
+await touchEvent('touchMove', [[90, 570, 1]])
+const slid = await until((d) => d.x > slideStart.x + 1.0, 90000)
+await touchEvent('touchEnd', [])
+check('forward follows the camera: she slides east along the wall and does not enter it', !!slid && slid.x > slideStart.x + 1.0 && slid.z >= -10.8, `${fmt(slideStart)} → ${fmt(slid)}`)
+
+// ---- 8. pinch zoom with two fingers on the right half ----
+const zoomBefore = (await readDebug()).dist
+await touchEvent('touchStart', [[250, 420, 1]])
+await touchEvent('touchStart', [[250, 420, 1], [350, 420, 2]])
+for (const k of [20, 40, 60, 80]) await touchEvent('touchMove', [[250 - k, 420, 1], [350 + k * 0.5, 420, 2]])
+await touchEvent('touchEnd', [])
+const zoomedIn = await until((d) => d.dist < zoomBefore - 0.5, 30000)
+check('spreading two fingers zooms the camera in', !!zoomedIn && zoomedIn.dist < zoomBefore - 0.5, `${zoomBefore} m → ${zoomedIn?.dist} m`)
+await touchEvent('touchStart', [[200, 420, 1]])
+await touchEvent('touchStart', [[200, 420, 1], [380, 420, 2]])
+for (const k of [30, 60, 90, 120]) await touchEvent('touchMove', [[200 + k * 0.4, 420, 1], [380 - k * 0.6, 420, 2]])
+await touchEvent('touchEnd', [])
+const zoomedOut = await until((d) => d.dist > zoomedIn.dist + 0.5, 30000)
+check('pinching two fingers together zooms the camera out', !!zoomedOut && zoomedOut.dist > zoomedIn.dist + 0.5, `${zoomedIn?.dist} m → ${zoomedOut?.dist} m`)
+const shotZoom = await p3.screenshot({ path: `${OUT}/s3-6-zoom.png` })
+check('two-finger gestures did not scroll or zoom the page', (await p3.evaluate(() => [window.scrollX, window.scrollY, window.visualViewport.scale])).join() === '0,0,1')
+
+// ---- 9. keyboard fallback ----
+const keyStart = await readDebug()
+await p3.keyboard.down('ArrowDown')
+const back = await until((d) => d.z > keyStart.z + 0.8, 60000)
+await p3.keyboard.up('ArrowDown')
+check('keyboard fallback: ArrowDown walks backwards (away from the camera direction)', !!back && back.z > keyStart.z + 0.8, `${fmt(keyStart)} → ${fmt(back)}`)
+
+// ---- 10. leaving and starting again resets the player ----
+await p3.getByRole('button', { name: 'Back to main menu' }).tap()
+await p3.getByRole('heading', { name: 'Dental Life' }).waitFor()
+await p3.getByRole('button', { name: 'New Game' }).tap()
+await p3.locator('canvas').waitFor({ timeout: 30000 })
+const again = await until((d) => Math.abs(d.z - 8) < 0.3 && d.cam === 180, 60000)
+check('a new game starts again at the spawn point with no leftover input', !!again && Math.abs(again.x) < 0.3 && again.speed < 0.2, fmt(again))
+check('Run is off in a new game', (await p3.getByTestId('btn-run').getAttribute('aria-pressed')) === 'false')
+
+printJpeg('sheet3', (await contactSheet([shotStart, shotWalk, shotRun, shotWall, shotLook, shotZoom], 3)).toString('base64'))
+
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 
