@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ROUTINE_STEPS, formatClock } from '@/home/routine'
+import { dayById } from '@/academics/timetable'
+import { useAcademicStore } from '@/state/useAcademicStore'
 import { usePlayerStore } from '@/state/usePlayerStore'
 import { usePromptStore } from '@/state/usePromptStore'
 import { useRouteStore } from '@/state/useRouteStore'
@@ -22,6 +24,7 @@ export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
   const routine = useRoutineStore((s) => s.routine)
   const toast = useRoutineStore((s) => s.toast)
   const arrived = useRouteStore((s) => s.arrivedAt !== null)
+  const day = useAcademicStore((s) => s.day)
   const busy = usePromptStore((s) => s.busy)
   const [shownToast, setShownToast] = useState<string | null>(null)
 
@@ -39,7 +42,7 @@ export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
     <>
       <div className="hud-top-safe pointer-events-none absolute inset-x-0 top-0 flex justify-center gap-2">
         <div data-testid="clock" className="rounded-full bg-black/45 px-4 py-1 font-mono text-sm text-white backdrop-blur">
-          ☀ {formatClock(routine.minutes)}
+          ☀ <span data-testid="weekday">{dayById(day).short}</span> {formatClock(routine.minutes)}
         </div>
         {showPlace && <PlaceChip />}
       </div>

@@ -6,7 +6,7 @@ import { useRoutineStore } from '@/state/useRoutineStore'
 import { arrowDegrees, instructionAt, projectOnRoute, remainingFrom } from '@/streets/routeLayout'
 
 /** Keeps the turning arrow on the shortest way round: 179° then −179° is a 2° turn, not a spin. */
-function useUnwrapped(deg: number): number {
+export function useUnwrapped(deg: number): number {
   const shown = useRef(deg)
   const diff = ((((deg - shown.current) % 360) + 540) % 360) - 180
   const next = shown.current + diff

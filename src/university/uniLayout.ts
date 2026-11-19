@@ -200,8 +200,8 @@ export interface UniRoom {
 export const UNI_ROOMS: UniRoom[] = [
   { id: 'lobby', name: 'University lobby', rect: R(-167.9, -152.1, -486.4, -478.4), floor: 'granite' },
   { id: 'corridor', name: 'Ground-floor corridor', rect: R(-181.6, -138.4, -489.6, -486.6), floor: 'tile' },
-  { id: 'hall1', name: 'Lecture Hall 1', rect: R(-181.6, -168.1, -486.4, -478.4), floor: 'vinyl' },
-  { id: 'hall2', name: 'Lecture Hall 2', rect: R(-151.9, -143.6, -486.4, -478.4), floor: 'vinyl' },
+  { id: 'hall1', name: 'Grand Hall', rect: R(-181.6, -168.1, -486.4, -478.4), floor: 'vinyl' },
+  { id: 'hall2', name: 'Hall 313', rect: R(-151.9, -143.6, -486.4, -478.4), floor: 'vinyl' },
   { id: 'office', name: 'Student Affairs office', rect: R(-143.4, -138.4, -486.4, -478.4), floor: 'vinyl' },
 ]
 export const roomById = (id: RoomId): UniRoom => UNI_ROOMS.find((r) => r.id === id) as UniRoom
@@ -242,6 +242,30 @@ export function chairCentres(x0: number, x1: number): number[] {
   const n = Math.max(1, Math.floor((x1 - x0) / 0.6 + 1e-6))
   const pitch = (x1 - x0) / n
   return Array.from({ length: n }, (_, k) => x0 + (k + 0.5) * pitch)
+}
+
+/**
+ * Her seat in each lecture hall (Stage 9): the chair at the end of the north desk row, next to the aisle. It is drawn like
+ * the other chairs, but its place is left out of the desk row's collider so she can walk in and sit there.
+ * `slot` is the free space of the chair (the desk row's chair half, one chair wide).
+ */
+export interface LectureSeat {
+  room: 'hall1' | 'hall2'
+  x: number
+  z: number
+  /** She faces the board on the south wall (0 faces +z). */
+  heading: number
+  slot: Rect
+}
+const lectureSeat = (room: LectureSeat['room'], block: Rect): LectureSeat => {
+  const xs = chairCentres(block.x0, block.x1)
+  const pitch = (block.x1 - block.x0) / xs.length
+  const x = xs[xs.length - 1]
+  return { room, x, z: ROW_Z0[0] + 0.18, heading: 0, slot: R(x - pitch / 2, x + pitch / 2, ROW_Z0[0], ROW_Z0[0] + ROW_DEPTH / 2) }
+}
+export const LECTURE_SEATS: Record<LectureSeat['room'], LectureSeat> = {
+  hall1: lectureSeat('hall1', HALL1_BLOCKS[0]),
+  hall2: lectureSeat('hall2', HALL2_BLOCKS[0]),
 }
 
 const hedgeRects = (l: Rect): Rect[] => [
@@ -336,6 +360,23 @@ export const PERSON_H = 1.7
 // Colliders
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The collider(s) of a piece of furniture: a desk row is two (the table half and the chair half, so her seat can be left open);
+ * everything else is its rectangle.
+ */
+export function furnColliders(f: Furn): Collider[] {
+  if (f.kind !== 'deskrow') return [box(f.rect, FLOOR_Y + f.h)]
+  const r = f.rect
+  const mid = r.z0 + ROW_DEPTH / 2
+  const out: Collider[] = [box(R(r.x0, r.x1, mid, r.z1), FLOOR_Y + f.h)]
+  const chairs = R(r.x0, r.x1, r.z0, mid)
+  const hole = Object.values(LECTURE_SEATS).find((q) => q.slot.x0 >= r.x0 - 1e-9 && q.slot.x1 <= r.x1 + 1e-9 && q.slot.z0 === r.z0)
+  if (!hole) return [...out, box(chairs, FLOOR_Y + f.h)]
+  if (hole.slot.x0 > r.x0 + 1e-9) out.push(box(R(r.x0, hole.slot.x0, chairs.z0, chairs.z1), FLOOR_Y + f.h))
+  if (hole.slot.x1 < r.x1 - 1e-9) out.push(box(R(hole.slot.x1, r.x1, chairs.z0, chairs.z1), FLOOR_Y + f.h))
+  return out
+}
+
 /** Seated people whose chair is not part of a desk block or a bench (the guard, the clerk, the stools at the kiosks): they are solid like the standing ones. */
 export const SEATED_ALONE: Person[] = UNI_PEOPLE.filter((p) => p.pose === 'sit' && !FURNITURE.some((f) => inRect(f.rect, p.x, p.z)))
 
@@ -350,7 +391,7 @@ export const UNI_COLLIDERS: Collider[] = [
   ...UNI_CANOPY_POLES.map((p) => circle(p.x, p.z, 0.16, UNI_CANOPY.h)),
   ...UNI_PALMS.map((p) => circle(p.x, p.z, PALM_R, p.h)),
   ...UNI_LAMPS.map((p) => circle(p.x, p.z, LAMP_R, 6.5)),
-  ...FURNITURE.map((f) => box(f.rect, FLOOR_Y + f.h)),
+  ...FURNITURE.flatMap(furnColliders),
   ...UNI_ROUND.map((r) => circle(r.x, r.z, r.r, FLOOR_Y + r.h)),
   ...UNI_PEOPLE.filter((p) => p.pose === 'stand').map((p) => circle(p.x, p.z, PERSON_R, FLOOR_Y + PERSON_H)),
   ...SEATED_ALONE.map((p) => circle(p.x, p.z, PERSON_R, FLOOR_Y + 1.2)),

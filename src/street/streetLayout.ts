@@ -335,8 +335,8 @@ export const ZONE_NAMES: Record<ZoneId, string> = {
   university: 'University of Science & Technology',
   lobby: 'University lobby',
   corridor: 'Ground-floor corridor',
-  hall1: 'Lecture Hall 1',
-  hall2: 'Lecture Hall 2',
+  hall1: 'Grand Hall',
+  hall2: 'Hall 313',
   office: 'Student Affairs office',
   courtyard: 'University courtyard',
 }

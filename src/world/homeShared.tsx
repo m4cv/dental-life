@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { buildHome } from '@/home/buildHome'
 import { CAMERA_ONLY_COLLIDERS, FRONT_DOOR_COLLIDER, HOME_COLLIDERS, SPOTS } from '@/home/homeLayout'
-import { actionFor, promptFor } from '@/home/routine'
+import { actionFor, isHomeSpotId, promptFor } from '@/home/routine'
 import { useRoutineStore } from '@/state/useRoutineStore'
 import type { RigInteraction } from './PlayerRig'
 
@@ -24,7 +24,9 @@ export const INTERACTION: RigInteraction = {
   spots: SPOTS,
   promptAt: (spot) => promptFor(spot, useRoutineStore.getState().routine),
   actionAt: (spot) => actionFor(spot),
-  onDone: (spot) => useRoutineStore.getState().finish(spot.id),
+  onDone: (spot) => {
+    if (isHomeSpotId(spot.id)) useRoutineStore.getState().finish(spot.id)
+  },
 }
 
 /** Swings the front door with the routine and hides the notebook once it is packed. */

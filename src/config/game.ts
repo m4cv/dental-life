@@ -2,7 +2,7 @@
 export const GAME = {
   title: 'Dental Life',
   tagline: 'Step into the life of a fourth-year dental student.',
-  version: '0.8.0',
-  stage: 8,
-  stageName: 'The University',
+  version: '0.9.0',
+  stage: 9,
+  stageName: 'Academic Life',
 } as const

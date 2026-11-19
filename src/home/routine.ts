@@ -1,6 +1,6 @@
 // The morning routine, as plain data and pure functions (no React, no three.js).
 import type { Gesture } from '../character/animations/pose.ts'
-import { SPOTS, type Spot, type StepId } from './homeLayout.ts'
+import { SPOTS, type SeatId, type Spot, type StepId } from './homeLayout.ts'
 
 export interface RoutineStep {
   id: StepId
@@ -26,8 +26,19 @@ export const ROUTINE_STEPS: RoutineStep[] = [
 /** What opening the front door looks like. */
 export const DOOR_ACTION = { seconds: 1.6, gesture: 'open' as Gesture }
 
-/** How long the action at a spot lasts and which gesture it plays. */
+/** True for the spots of the morning at home (a routine step or the front door), false for a lecture seat. */
+export function isHomeSpotId(id: Spot['id']): id is StepId | 'door' {
+  return id !== 'seat-hall1' && id !== 'seat-hall2'
+}
+
+/** True for the seat of a lecture hall. */
+export function isSeatId(id: Spot['id']): id is SeatId {
+  return !isHomeSpotId(id)
+}
+
+/** How long the action at a spot lasts and which gesture it plays (the morning's spots only; seats are in academics/). */
 export function actionFor(spot: Spot): { seconds: number; gesture: Gesture } {
+  if (!isHomeSpotId(spot.id)) throw new Error(`${spot.id} is not a spot of the morning`)
   return spot.id === 'door' ? DOOR_ACTION : stepById(spot.id)
 }
 
@@ -110,6 +121,7 @@ export function promptFor(spot: Spot, s: RoutineState): Prompt | null {
       note: `Finish your morning routine first (${s.done.length} of ${ROUTINE_STEPS.length})`,
     }
   }
+  if (!isHomeSpotId(spot.id)) return null
   if (s.done.includes(spot.id)) return null
   return { id: spot.id, label: stepById(spot.id).prompt, enabled: true }
 }

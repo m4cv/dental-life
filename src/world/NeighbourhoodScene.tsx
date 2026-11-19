@@ -6,6 +6,8 @@ import { buildHome } from '@/home/buildHome'
 import { CAMERA_ONLY_COLLIDERS, CEILING_Y, FRONT_DOOR_COLLIDER, HOME_SPAWN } from '@/home/homeLayout'
 import { formatClock } from '@/home/routine'
 import { spawnFromQuery } from '@/home/spawn'
+import { dayFromQuery } from '@/academics/timetable'
+import { useAcademicStore } from '@/state/useAcademicStore'
 import { useRouteStore } from '@/state/useRouteStore'
 import { useRoutineStore } from '@/state/useRoutineStore'
 import { buildStreet } from '@/street/buildStreet'
@@ -16,7 +18,8 @@ import { buildCampus } from '@/university/buildCampus'
 import { CEIL_Y, enteredBuilding, floorHeightAt, insideBuilding } from '@/university/uniLayout'
 import { buildCar } from '@/vehicle/buildCar'
 import { carFromQuery, startsDriving } from '@/vehicle/carLayout'
-import { HomeLights, INTERACTION, useHomeAnimation } from './homeShared'
+import { CAMPUS_INTERACTION } from './campusInteraction'
+import { HomeLights, useHomeAnimation } from './homeShared'
 import { PlayerRig, type RigConfig } from './PlayerRig'
 
 /**
@@ -69,6 +72,11 @@ export function NeighbourhoodScene() {
     const store = useRoutineStore.getState()
     store.reset()
     useRouteStore.getState().reset()
+    const academic = useAcademicStore.getState()
+    academic.reset()
+    // ?day=sat|sun|mon|tue|wed|thu picks the day without the menu (a test aid)
+    const queryDay = dayFromQuery(window.location.search)
+    if (queryDay) academic.setDay(queryDay)
     if (new URLSearchParams(window.location.search).get('routine') === 'done') store.skipToDoor()
     return () => {
       home.dispose()
@@ -114,7 +122,7 @@ export function NeighbourhoodScene() {
       camDist: 3.6,
       sun: { ...SUN_INDOORS, half: 12, far: 80 },
       sunAt: (x, z) => (insideHome(x, z) || insideBuilding(x, z) ? SUN_INDOORS : SUN_OUTDOORS),
-      interaction: INTERACTION,
+      interaction: CAMPUS_INTERACTION,
       vehicle: {
         start: carStart,
         startsDriving: startsDriving(window.location.search),

@@ -120,8 +120,10 @@ const flat = (p) => [
 
 // Gestures (Stage 4): hands-busy standing actions blended over the standing pose.
 {
-  const kinds = Object.keys(GESTURES)
-  check('there are six gestures: brush, mirror, dress, eat, pack, open', kinds.length === 6 && ['brush', 'mirror', 'dress', 'eat', 'pack', 'open'].every((k) => kinds.includes(k)))
+  // six standing gestures (Stage 4) and the seated pose of the lecture halls (Stage 9, tested in test-academics.mjs, which bends the legs)
+  const all = Object.keys(GESTURES)
+  const kinds = all.filter((k) => k !== 'sit')
+  check('there are six standing gestures — brush, mirror, dress, eat, pack, open — and sitting', kinds.length === 6 && all.length === 7 && ['brush', 'mirror', 'dress', 'eat', 'pack', 'open'].every((k) => kinds.includes(k)) && all.includes('sit'))
   const before = flat(solvePose(createPose(), 0, 0, 0))
   check('weight 0 leaves the pose untouched', kinds.every((k) => flat(applyGesture(solvePose(createPose(), 0, 0, 0), k, 0, 1.3)).every((v, i) => v === before[i])))
   let finite = true

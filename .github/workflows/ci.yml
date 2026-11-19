@@ -25,3 +25,29 @@ jobs:
         run: npm test
       - name: Type-check and build
         run: npm run build
+
+  # The short Stage 9 browser test (about 8 minutes). Runs only when the commit message contains [lectures]
+  # (the manual workflow "Browser test - lectures" does the same, but a workflow can only be started by hand
+  # once its file is on main, so on a stage branch this tag is the way).
+  lectures:
+    if: contains(github.event.head_commit.message, '[lectures]')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - name: Lectures browser test (real WebGL)
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          node scripts/smoke-lectures.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lectures-screenshots
+          path: smoke-output/
+          if-no-files-found: ignore

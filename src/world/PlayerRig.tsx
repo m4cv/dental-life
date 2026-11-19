@@ -25,6 +25,10 @@ export interface RigInteraction {
   promptAt: (spot: Spot) => Prompt | null
   /** How long the action takes and which gesture it plays. */
   actionAt: (spot: Spot) => { seconds: number; gesture: Gesture }
+  /** Called when she presses the button, before she walks in (Stage 9: a lecture notes how she is marked). */
+  onStart?: (spot: Spot) => void
+  /** Called as the gesture runs, with its progress in 2 % steps from 0 to 1 (Stage 9: the clock follows a lecture). */
+  onProgress?: (spot: Spot, progress: number) => void
   /** Called when the gesture finishes. */
   onDone: (spot: Spot) => void
 }
@@ -119,6 +123,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
   const action = useRef<Action | null>(null)
   const shownPrompt = useRef('')
   const shownProgress = useRef(-1)
+  const fineProgress = useRef(-1)
   const { shadowMapSize } = GRAPHICS_PROFILES[DEFAULT_QUALITY]
 
   /** She gets into the car: the character is hidden, the camera moves behind the car. */
@@ -272,7 +277,9 @@ export function PlayerRig({ config }: { config: RigConfig }) {
             const a = interaction.actionAt(spot)
             action.current = startAction(spot, a.seconds, a.gesture)
             shownProgress.current = 0
+            fineProgress.current = -1
             shownPrompt.current = ''
+            interaction.onStart?.(spot)
             usePromptStore.setState({ prompt: null, busy: { label: prompt.label, progress: 0 } })
           }
         }
@@ -295,6 +302,13 @@ export function PlayerRig({ config }: { config: RigConfig }) {
           shownProgress.current = shown
           const busy = usePromptStore.getState().busy
           if (busy) usePromptStore.setState({ busy: { ...busy, progress: shown } })
+        }
+        if (act.phase === 'act') {
+          const fine = Math.round(s.progress * 50) / 50
+          if (fine !== fineProgress.current) {
+            fineProgress.current = fine
+            interaction?.onProgress?.(act.spot, fine)
+          }
         }
         if (s.done) {
           action.current = null

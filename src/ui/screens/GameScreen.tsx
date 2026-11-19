@@ -1,6 +1,7 @@
 import { GameCanvas } from '@/engine/GameCanvas'
 import { TouchControls } from '@/controls/TouchControls'
 import { useAppStore } from '@/state/useAppStore'
+import { ClassHud, TimetableButton } from '@/ui/components/ClassHud'
 import { CharacterPreviewPanel } from '@/ui/components/CharacterPreviewPanel'
 import { Diagnostics } from '@/ui/components/Diagnostics'
 import { DriveHud } from '@/ui/components/DriveHud'
@@ -40,20 +41,25 @@ export default function GameScreen() {
       {!PREVIEW_MODE && <TouchControls />}
 
       <div className="hud-top-safe pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2">
-        <button
-          type="button"
-          className="btn-hud pointer-events-auto shrink-0 whitespace-nowrap"
-          aria-label="Back to main menu"
-          onClick={returnToMenu}
-        >
-          ☰ Menu
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn-hud pointer-events-auto shrink-0 whitespace-nowrap"
+            aria-label="Back to main menu"
+            onClick={returnToMenu}
+          >
+            ☰ Menu
+          </button>
+          {!PREVIEW_MODE && !COURTYARD_MODE && !HOME_ONLY_MODE && <TimetableButton />}
+        </div>
         <Diagnostics />
       </div>
 
       {!PREVIEW_MODE && !COURTYARD_MODE && <RoutineHud showPlace={!HOME_ONLY_MODE} />}
 
       {!PREVIEW_MODE && !COURTYARD_MODE && !HOME_ONLY_MODE && <RouteHud />}
+
+      {!PREVIEW_MODE && !COURTYARD_MODE && !HOME_ONLY_MODE && <ClassHud />}
 
       {!PREVIEW_MODE && <DriveHud />}
 

@@ -107,7 +107,7 @@ const smooth = (t: number) => {
 }
 
 /** Standing, hands-busy actions of the morning routine (and opening a door). */
-export type Gesture = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack' | 'open'
+export type Gesture = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack' | 'open' | 'sit'
 
 interface GestureShape {
   /** Right and left arm: shoulder pitch, elbow flexion, abduction (rad). */
@@ -134,7 +134,21 @@ export const GESTURES: Record<Gesture, GestureShape> = {
   pack: { r: [0.8, 0.45, 0.1], l: [0.8, 0.45, 0.1], torso: 0.3, head: 0.18, wobble: 0.12, hz: 1.4 },
   // opening a door: one arm forward
   open: { r: [1.0, 0.25, 0.08], l: [0.1, 0.25, 0.05], torso: 0.05, head: 0, wobble: 0.05, hz: 1 },
+  // sitting at a lecture desk (Stage 9): both forearms resting forward on the desk, the right hand writing a little
+  sit: { r: [0.55, 1.25, 0.1], l: [0.55, 1.25, 0.1], torso: 0.05, head: 0.04, wobble: 0.05, hz: 0.7 },
 }
+
+/**
+ * The legs of the seated pose (Stage 9): thighs almost level, shins straight down, feet flat. The body is lowered
+ * so the ankles stay at standing height above the floor, which puts the hips about 0.54 m up, where the lecture
+ * chairs' seats (0.475 m) take her weight.
+ */
+export const SIT_LEG: LegPose = { thigh: 1.35, knee: 1.35, foot: 0 }
+/** Hip height of the seated pose above the floor (m). */
+export const SIT_HIP_Y = RIG.ankleY - ankleHeight(SIT_LEG.thigh, SIT_LEG.knee) + RIG.hipY
+/** The coat's hem lifts forward over the thighs while she sits (rad) and widens (a multiplier). */
+const SIT_SKIRT_PITCH = 0.85
+const SIT_SKIRT_FLARE = 1.3
 
 /**
  * Blend a standing gesture over the walking pose. `w` is 0 (none) … 1 (full); `time` is the clock.
@@ -154,7 +168,24 @@ export function applyGesture(pose: Pose, gesture: Gesture, w: number, time: numb
   pose.armL.abduct = lerp(pose.armL.abduct, g.l[2], k)
   pose.torsoPitch = lerp(pose.torsoPitch, g.torso, k)
   pose.headPitch = lerp(pose.headPitch, g.head, k)
+  if (gesture === 'sit') applySit(pose, k)
   return pose
+}
+
+/** Sitting also bends the legs and lowers the body (the other gestures leave them alone). */
+function applySit(pose: Pose, k: number): void {
+  for (const leg of [pose.legL, pose.legR]) {
+    leg.thigh = lerp(leg.thigh, SIT_LEG.thigh, k)
+    leg.knee = lerp(leg.knee, SIT_LEG.knee, k)
+    leg.foot = lerp(leg.foot, SIT_LEG.foot, k)
+  }
+  pose.bodyY = lerp(pose.bodyY, SIT_HIP_Y - RIG.hipY, k)
+  pose.bodyX = lerp(pose.bodyX, 0, k)
+  pose.hipsYaw = lerp(pose.hipsYaw, 0, k)
+  pose.torsoYaw = lerp(pose.torsoYaw, 0, k)
+  pose.torsoRoll = lerp(pose.torsoRoll, 0, k)
+  pose.skirtPitch = lerp(pose.skirtPitch, SIT_SKIRT_PITCH, k)
+  pose.skirtFlare = lerp(pose.skirtFlare, SIT_SKIRT_FLARE, k)
 }
 
 /** Position on the idle(0) → walk(1) → run(2) scale for a speed in m/s. */

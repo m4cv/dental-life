@@ -1,0 +1,34 @@
+name: Browser test - lectures (manual)
+
+# The short Stage 9 walk in a real headless browser (software WebGL, about 8 minutes): the day chips, the timetable,
+# the card that guides her to the lecture hall, sitting through lectures with the clock running, and pictures of the
+# sitting pose and the door signs (contact sheet in the job log). Start it by hand: Actions → Browser test - lectures
+# (manual) → Run workflow, pick the branch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lectures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Type-check and build
+        run: npm run build
+      - name: Lectures browser test (real WebGL)
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          node scripts/smoke-lectures.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lectures-screenshots
+          path: smoke-output/
+          if-no-files-found: ignore
