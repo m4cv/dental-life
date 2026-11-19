@@ -776,9 +776,12 @@ try {
   check('the walls on the home side stop her (north side)', !!north && north.z > 4.7 && north.z < 6, fmt4(north))
 
   // run east along the lane to Ninety Street (Run toggles a faster pace)
+  // (the read-out is a few tenths of a second old, and at running speed that is metres: a tight waypoint would make the pilot
+  // overshoot and circle it, so the run uses loose waypoints and the precise ones come back at walking pace)
   await p4.getByTestId('btn-run').tap()
-  const eastLane = await route([[16, 7.6, { tol: 0.7 }], [30, 7.6, { tol: 0.7 }], [46, 7.6, { tol: 0.7 }], [61, 7.6, { tol: 0.7 }]], { ms: 60000 })
-  check('she runs east along the lane for about 60 m', !!eastLane && eastLane.x > 59, fmt4(eastLane))
+  const eastLane = await route([[18, 7.6, { tol: 2.2 }], [34, 7.6, { tol: 2.2 }], [50, 7.6, { tol: 2.2 }], [60, 7.6, { tol: 2.2 }]], { ms: 40000 })
+  await p4.getByTestId('btn-run').tap()
+  check('she runs east along the lane for about 60 m', !!eastLane && eastLane.x > 57, fmt4(eastLane))
   shots5.push(await p4.screenshot({ path: `${OUT}/s5-4-lane-east.png` }))
   const mouth = await route([[66.5, 7.6, { tol: 0.6 }]], { ms: 30000 })
   check('at the end of the lane she steps onto Ninety Street and the chip says so', !!mouth && (await waitZone('boulevard')) && ((await p4.getByTestId('place').innerText()) || '').trim() === 'Ninety Street', fmt4(mouth))
@@ -798,7 +801,6 @@ try {
   check('the barrier closes the road at the north end (she cannot go past it)', !!barrier && barrier.z > -30.1 && barrier.z < -28.9, fmt4(barrier))
   await p4.waitForTimeout(1200)
   shots5.push(await p4.screenshot({ path: `${OUT}/s5-6-barrier.png` }))
-  await p4.getByTestId('btn-run').tap()
 } catch (e) {
   check('the Stage 5 walk finished without an exception', false, String(e.message).split('\n')[0])
 }
