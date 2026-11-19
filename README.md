@@ -3,8 +3,8 @@
 A mobile-first 3D life simulation of a fourth-year dental student living in Yemen.
 Runs in the phone's browser from a web link — no install, no second device.
 
-**Current status: Stage 1 — Project Foundation (v0.1.0).**
-There is no playable character yet; that is Stage 2. See `docs/ARCHITECTURE.md` for the plan.
+**Current status: Stage 2 — Main Character (v0.2.0).**
+The character can be inspected (idle / walk / run, four camera angles) but not yet controlled; touch controls are Stage 3. See `docs/ARCHITECTURE.md` for the plan.
 
 ## Run it
 
