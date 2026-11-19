@@ -57,7 +57,7 @@ function Eye({ side, lidRef }: { side: 1 | -1; lidRef: RefObject<Group | null> }
   const x = 0.033
   const y = 0.012
   return (
-    <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.22, 0]}>
+    <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.12, 0]}>
       <Ell mat={mat.sclera} s={[0.0165, 0.0095, 0.0042]} shadow={false} />
       <Ell mat={mat.iris} p={[0, 0, 0.003]} s={[0.0079, 0.0079, 0.003]} shadow={false} />
       <Ell mat={mat.pupil} p={[0, 0, 0.0045]} s={[0.004, 0.004, 0.0016]} shadow={false} />
@@ -297,7 +297,6 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
                 geometry={geo.coatSkirt}
                 material={mat.coat}
                 castShadow
-                receiveShadow
               />
               <mesh
                 ref={(m) => {

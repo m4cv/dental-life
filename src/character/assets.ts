@@ -48,7 +48,7 @@ import {
 export const CHAR_COLORS = {
   skin: '#dcae90',
   lip: '#b4636b',
-  brow: '#2a1c17',
+  brow: '#3a261e',
   iris: '#3a2418',
   hijab: '#cfb0ad',
   hijabFold: '#c2a19e',
@@ -190,7 +190,7 @@ function buildAssets() {
   const C = CHAR_COLORS
 
   // ---- face curves (head-centre coordinates) ----
-  const browL: [number, number][] = [[0.013, 0.04], [0.031, 0.0475], [0.054, 0.038]]
+  const browL: [number, number][] = [[0.013, 0.043], [0.031, 0.0465], [0.054, 0.041]]
   const browR = browL.map(([x, y]) => [-x, y] as [number, number])
   const lashL: [number, number][] = [[0.0165, 0.0105], [0.0335, 0.0225], [0.0495, 0.0135], [0.0555, 0.017]]
   const lashR = lashL.map(([x, y]) => [-x, y] as [number, number])
@@ -230,7 +230,7 @@ function buildAssets() {
     ),
     strap: toGeometry(ribbonMesh(strapPath(), coatNormal, 0.03)),
     button: new CylinderGeometry(0.0125, 0.0125, 0.006, 18).rotateX(Math.PI / 2),
-    brow: [tube(onSkin(browL, 0.003), 0.0033, false, 16), tube(onSkin(browR, 0.003), 0.0033, false, 16)],
+    brow: [tube(onSkin(browL, 0.003), 0.0026, false, 16), tube(onSkin(browR, 0.003), 0.0026, false, 16)],
     lash: [tube(onSkin(lashL, 0.0045), 0.0022, false, 16), tube(onSkin(lashR, 0.0045), 0.0022, false, 16)],
     upperLip: tube(onSkin(upperLip, 0.0015), 0.0032, false, 16),
     lowerLip: tube(onSkin(lowerLip, 0.0015), 0.0042, false, 16),
