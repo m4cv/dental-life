@@ -33,6 +33,8 @@ export interface RigConfig {
   bounds: Bounds
   /** Read every frame, so a door can add or remove its collider while the game runs. */
   colliders: () => readonly Collider[]
+  /** What the camera avoids: the colliders above plus things she can walk under (default: just the colliders). */
+  cameraColliders?: () => readonly Collider[]
   /** Indoors: the camera stays under the ceiling. */
   ceilingY?: number
   /** Wanted camera distance when a game starts (the player can pinch to change it). */
@@ -81,6 +83,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     const c = cam.current
     const dt = Math.min(delta, 0.1)
     const colliders = config.colliders()
+    const camColliders = config.cameraColliders ? config.cameraColliders() : colliders
 
     // ---- camera input: drag / pinch / wheel, and the recenter button ----
     const look = takeLook()
@@ -169,12 +172,12 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     let pitch = c.pitch
     let wantedArm: number
     if (ceilingY !== undefined) {
-      const goal = indoorPitch(pivot, c.yaw, c.pitch, c.dist, colliders, ceilingY)
+      const goal = indoorPitch(pivot, c.yaw, c.pitch, c.dist, camColliders, ceilingY)
       pitchNow.current += (goal - pitchNow.current) * (1 - Math.exp(-(goal > pitchNow.current ? 8 : 3) * dt))
       pitch = pitchNow.current
-      wantedArm = safeDistance(pivot, c.yaw, pitch, c.dist, colliders, ceilingY, CAM_INDOOR.armMin, CAM_INDOOR.margin)
+      wantedArm = safeDistance(pivot, c.yaw, pitch, c.dist, camColliders, ceilingY, CAM_INDOOR.armMin, CAM_INDOOR.margin)
     } else {
-      wantedArm = safeDistance(pivot, c.yaw, pitch, c.dist, colliders)
+      wantedArm = safeDistance(pivot, c.yaw, pitch, c.dist, camColliders)
     }
     c.arm = easeArm(c.arm, wantedArm, dt)
     const o = cameraOffset(c.yaw, pitch, c.arm)

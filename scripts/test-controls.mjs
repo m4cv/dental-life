@@ -227,8 +227,9 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
   {
   // indoors, with the real walls: wherever she stands and whichever way the camera points, the
   // camera must end up inside the same room as her, below the ceiling and never inside furniture
-  const { HOME_COLLIDERS, HOME_BOUNDS, CEILING_Y, ROOMS, FRONT_DOOR_COLLIDER } = await import('../src/home/homeLayout.ts')
-  const cols = [...HOME_COLLIDERS, FRONT_DOOR_COLLIDER]
+  const { HOME_COLLIDERS, HOME_BOUNDS, CEILING_Y, ROOMS, FRONT_DOOR_COLLIDER, CAMERA_ONLY_COLLIDERS } = await import('../src/home/homeLayout.ts')
+  const cols = [...HOME_COLLIDERS, FRONT_DOOR_COLLIDER, ...CAMERA_ONLY_COLLIDERS]
+  const walk = [...HOME_COLLIDERS, FRONT_DOOR_COLLIDER]
   const roomAt = (x, z) => ROOMS.find((r) => x >= r.x0 - 0.1 && x <= r.x1 + 0.1 && z >= r.z0 - 0.1 && z <= r.z1 + 0.1)?.id ?? null
   let bad = 0
   let cases = 0
@@ -239,7 +240,7 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
   for (const r of ROOMS) {
     for (let x = r.x0 + 0.4; x <= r.x1 - 0.4; x += 0.35) {
       for (let z = r.z0 + 0.4; z <= r.z1 - 0.4; z += 0.35) {
-        if (cols.some((c) => pointBlocked(x, z, 0.1, c, 0.28))) continue
+        if (walk.some((c) => pointBlocked(x, z, 0.1, c, 0.28))) continue
         const pivot = [x, CAM.pivotY, z]
         for (let k = 0; k < 8; k++) {
           const yaw = (k / 8) * Math.PI * 2
@@ -252,6 +253,7 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
           cases += 1
           minArm = Math.min(minArm, arm)
           if (pitch > CAM.pitchDefault + 0.01) climbs += 1
+          if (pitch > CAM_INDOOR.pitchMax + 1e-9) bad += 1
           const sameRoom = roomAt(cx, cz) === r.id
           const inWall = cols.some((c) => pointBlocked(cx, cz, cy, c, 0))
           if (!sameRoom) why.room += 1
@@ -264,7 +266,7 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
       }
     }
   }
-  check(`indoors the camera never ends up behind a wall, inside furniture or above the ceiling (${cases} positions × headings)`, cases > 400 && bad === 0, `${bad} bad of ${cases} ${JSON.stringify(why)}, ${doorway} in a doorway, closest arm ${minArm.toFixed(2)} m, climbed in ${climbs}`)
+  check(`indoors the camera never ends up behind a wall, inside furniture or above the ceiling (${cases} positions × headings)`, cases > 400 && bad === 0 && minArm >= 0.8, `${bad} bad of ${cases} ${JSON.stringify(why)}, ${doorway} in a doorway, closest arm ${minArm.toFixed(2)} m, climbed in ${climbs}`)
   void HOME_BOUNDS
 }
 check('a new camera can start closer indoors (createCam with a distance)', createCam(0, 3.2).dist === 3.2 && createCam(0).dist === CAM.distDefault)

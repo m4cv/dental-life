@@ -4,7 +4,7 @@ import { APPROACH_TIMEOUT, ARRIVE_DIST, startAction, stepAction, worldToStick } 
 import { spawnFromQuery } from '../src/home/spawn.ts'
 import {
   CEILING_Y, FRONT_DOOR, FRONT_DOOR_COLLIDER, FURNITURE, FURNITURE_COLLIDERS, HOME_BOUNDS, HOME_COLLIDERS, HOME_SPAWN,
-  ROOMS, SPOTS, WALLS, WALL_PIECES, WALL_T, spotById, wallColliders, wallPieces,
+  CAMERA_ONLY_COLLIDERS, ROOMS, SPOTS, WALLS, WALL_PIECES, WALL_T, spotById, wallColliders, wallPieces,
 } from '../src/home/homeLayout.ts'
 import {
   DOOR_ACTION, ROUTINE_STEPS, START_MINUTES, actionFor, completeStep, formatClock, initialRoutine, nearestSpot, openDoor, promptFor, routineComplete,
@@ -117,6 +117,7 @@ check('she cannot get outside the house any other way (west, east, far north, be
   }
 }
 check('the camera can never see through the roof (walls reach the ceiling height)', WALL_PIECES.filter((p) => p.part === 'solid').every((p) => p.y1 === CEILING_Y))
+check('ceiling fixtures and air-conditioners are camera-only: she can walk under them, the camera cannot enter them', CAMERA_ONLY_COLLIDERS.length === 7 && CAMERA_ONLY_COLLIDERS.every((c) => !HOME_COLLIDERS.includes(c) && c.height >= 2.7 && c.bottom >= 1.8 && c.bottom < c.height))
 check('furniture colliders match the furniture list', FURNITURE_COLLIDERS.length === FURNITURE.length + 1)
 
 // ---- spots ---------------------------------------------------------------------------------------

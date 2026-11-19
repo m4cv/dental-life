@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { PALETTE } from '@/config/palette'
 import { buildHome } from '@/home/buildHome'
 import {
-  CEILING_Y, FRONT_DOOR_COLLIDER, HOME_BOUNDS, HOME_COLLIDERS, SPOTS,
+  CAMERA_ONLY_COLLIDERS, CEILING_Y, FRONT_DOOR_COLLIDER, HOME_BOUNDS, HOME_COLLIDERS, SPOTS,
 } from '@/home/homeLayout'
 import { actionFor, promptFor } from '@/home/routine'
 import { spawnFromQuery } from '@/home/spawn'
@@ -13,6 +13,9 @@ import { PlayerRig, type RigConfig, type RigInteraction } from './PlayerRig'
 /** Colliders with the front door shut, and with it open (the doorway is then a gap). */
 const COLLIDERS_SHUT = [...HOME_COLLIDERS, FRONT_DOOR_COLLIDER]
 const COLLIDERS_OPEN = HOME_COLLIDERS
+/** The same, plus the ceiling fixtures and air-conditioners the camera keeps out of. */
+const CAMERA_SHUT = [...COLLIDERS_SHUT, ...CAMERA_ONLY_COLLIDERS]
+const CAMERA_OPEN = [...COLLIDERS_OPEN, ...CAMERA_ONLY_COLLIDERS]
 
 /** How far the front door swings open (radians, about the hinge, out onto the porch). */
 const DOOR_OPEN_ANGLE = -Math.PI / 2 + 0.08
@@ -44,6 +47,7 @@ export function HomeScene() {
       groundY: 0,
       bounds: HOME_BOUNDS,
       colliders: () => (useRoutineStore.getState().routine.doorOpen ? COLLIDERS_OPEN : COLLIDERS_SHUT),
+      cameraColliders: () => (useRoutineStore.getState().routine.doorOpen ? CAMERA_OPEN : CAMERA_SHUT),
       ceilingY: CEILING_Y,
       camDist: 3.2,
       // Mostly overhead: indoors the sun is only there to give her and the furniture soft shadows.

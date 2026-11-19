@@ -3,8 +3,10 @@
 A mobile-first 3D life simulation of a fourth-year dental student living in Yemen.
 Runs in the phone's browser from a web link — no install, no second device.
 
-**Current status: Stage 3 — Mobile Touch Controls (v0.3.1).**
-The game is played **with the phone held sideways (landscape)**. Tap **New Game** and the character can be walked around the placeholder courtyard with a floating joystick (left thumb), a look-around drag (right thumb), pinch-to-zoom and a Run toggle, with a third-person camera that does not clip through walls. On a touch phone the tap also asks the browser for full screen and a landscape lock (Android Chrome allows it; iPhone Safari does not); a narrow portrait screen shows a "Turn your phone sideways" prompt that disappears when the phone is rotated. The environment is still a stand-in until Stage 4. The Stage 2 character inspector (idle / walk / run, four camera angles) is kept at `?preview=1`. See `docs/ARCHITECTURE.md` for the plan.
+**Current status: Stage 4 — The Home (v0.4.0).**
+The game is played **with the phone held sideways (landscape)**. Tap **New Game** and you wake up in the bedroom of a single-storey home built from the photographs: the living room (dark glossy tiles with white lace pattern, grey velvet sofa, black marble television wall), the dining area (white marble table, blue-grey chairs), the bedroom (white beams, champagne curtains, sage-green bed), the dressing table with its round lit mirror, and a plain bathroom. A **morning routine** has five steps — brush your teeth, check the mirror, straighten your coat, have breakfast, pack your notebook — each done with the **Interact** button that appears when you stand at the right place. The front door stays shut until all five are done; then it opens onto a small porch (the street comes in Stage 5).
+
+**What is real and what is estimated.** The furniture, colours and materials follow the photographs. The room sizes, the door positions and the whole bathroom are **estimates** (no floor plan and no bathroom photo yet); the kitchen and the outside are not built. Nothing here is a 3D scan of the photographs. The Stage 3 courtyard test set is kept at `?scene=courtyard`, the Stage 2 character inspector at `?preview=1`, and `?at=x,z,deg` starts the home at a chosen spot (0° faces south, 90° east, 180° north, 270° west). See `docs/ARCHITECTURE.md` for the plan.
 
 ### Controls
 | Input | Touch | Keyboard / mouse |
@@ -14,6 +16,7 @@ The game is played **with the phone held sideways (landscape)**. Tap **New Game*
 | Zoom | Pinch with two fingers on the right half | Mouse wheel |
 | Run | **Run** button (toggle) | Hold Shift |
 | Re-centre camera behind her | Round arrow button | C |
+| Interact (brush teeth, mirror, door…) | **Interact** button, left of Run, shown only when something can be done where you stand | E |
 
 ## Run it
 

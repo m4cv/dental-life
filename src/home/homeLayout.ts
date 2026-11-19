@@ -204,6 +204,21 @@ export const FURNITURE_COLLIDERS: Collider[] = [
   { kind: 'circle', x: PLANT.x, z: PLANT.z, r: PLANT.r, height: PLANT.height },
 ]
 
+/**
+ * Things that hang from the ceiling or sit high on a wall. She walks under them, so they are not
+ * in the player's colliders, but the camera must never end up inside one (the chandelier right in
+ * front of the lens hid half the screen in the first render).
+ */
+export const CAMERA_ONLY_COLLIDERS: Collider[] = [
+  { kind: 'circle', x: 1.7, z: -3.2, r: 0.5, height: CEILING_Y, bottom: 1.8 }, // chandelier
+  { kind: 'circle', x: 1.7, z: -4.9, r: 0.65, height: CEILING_Y, bottom: 2.55 }, // living-room ceiling fan
+  { kind: 'circle', x: 4.8, z: -4.9, r: 0.65, height: CEILING_Y, bottom: 2.55 }, // bedroom ceiling fan
+  { kind: 'circle', x: 3.7, z: -7.8, r: 0.25, height: CEILING_Y, bottom: 2.75 }, // dining pendant light
+  { kind: 'circle', x: 6.3, z: -7.8, r: 0.25, height: CEILING_Y, bottom: 2.75 }, // bathroom light
+  { kind: 'box', x: 1.1, z: -6.29, hw: 0.5, hd: 0.11, height: 2.7, bottom: 2.3 }, // air-conditioner, living room
+  { kind: 'box', x: 4.6, z: -6.29, hw: 0.5, hd: 0.11, height: 2.7, bottom: 2.3 }, // air-conditioner, bedroom
+]
+
 /** A small porch in front of the door: a slab with low side walls. The street arrives in Stage 5. */
 export const PORCH = { x0: 1.6, x1: 3.4, z0: 0.2, z1: 1.5, wallHeight: 0.9, wallT: 0.12 }
 

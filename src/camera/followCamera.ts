@@ -99,6 +99,8 @@ export const CAM_INDOOR = {
   /** An arm this long (or the wanted distance, if shorter) is good enough: no need to climb. */
   goodArm: 2.0,
   pitchStep: 0.08,
+  /** The steepest the camera may look down in a tight spot (the player's own drag stops at CAM.pitchMax). */
+  pitchMax: 1.45,
 } as const
 
 /** The pitch to aim for indoors: the player's own pitch, raised only as far as needed for a decent arm. */
@@ -113,11 +115,11 @@ export function indoorPitch(
   const target = Math.min(wanted, CAM_INDOOR.goodArm)
   let bestArm = -1
   let bestPitch = pitch
-  for (let p = pitch; p <= CAM.pitchMax + 1e-9; p += CAM_INDOOR.pitchStep) {
+  for (let p = pitch; p <= CAM_INDOOR.pitchMax + 1e-9; p += CAM_INDOOR.pitchStep) {
     const arm = safeDistance(pivot, yaw, p, wanted, colliders, ceilingY, CAM_INDOOR.armMin, CAM_INDOOR.margin)
     if (arm >= target - 1e-9) return p
     // keep the pitch with the longest arm; when every pitch is boxed in, the steepest one wins
-    // (looking down from just above her head is the only view that cannot end up inside a wall)
+    // (a bird's-eye view from just under the ceiling is the only one that cannot end up in a wall)
     const boxedIn = arm <= CAM_INDOOR.armMin + 1e-9 && bestArm <= CAM_INDOOR.armMin + 1e-9
     if (arm > bestArm + 1e-9 || boxedIn) {
       bestArm = arm

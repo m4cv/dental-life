@@ -259,7 +259,7 @@ export function TouchControls() {
           style={{ right: `calc(${edgeR} + 0.5rem + ${L.runSize}px + 1rem)`, bottom: `calc(${floor} + 0.5rem)` }}
         >
           {prompt.note && (
-            <p data-testid="interact-note" className="max-w-[16rem] rounded-xl bg-black/60 px-3 py-1.5 text-right text-xs text-white">
+            <p data-testid="interact-note" className="max-w-[22rem] rounded-xl bg-black/60 px-3 py-1.5 text-right text-xs text-white">
               {prompt.note}
             </p>
           )}

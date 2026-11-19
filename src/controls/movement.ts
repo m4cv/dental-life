@@ -13,6 +13,8 @@ export interface BoxCollider {
   hd: number
   /** Top of the obstacle in metres (the camera can look over low things). */
   height: number
+  /** Camera-only things that hang from the ceiling: the camera is blocked only at or above this height. */
+  bottom?: number
 }
 
 export interface CircleCollider {
@@ -21,6 +23,7 @@ export interface CircleCollider {
   z: number
   r: number
   height: number
+  bottom?: number
 }
 
 export type Collider = BoxCollider | CircleCollider
@@ -90,6 +93,7 @@ export function stickToWorld(x: number, y: number, camYaw: number): [number, num
 /** True when (x, z) at height y lies inside the collider grown by `margin`. */
 export function pointBlocked(x: number, z: number, y: number, c: Collider, margin = 0): boolean {
   if (y > c.height) return false
+  if (c.bottom !== undefined && y < c.bottom) return false
   if (c.kind === 'circle') return Math.hypot(x - c.x, z - c.z) < c.r + margin
   return Math.abs(x - c.x) < c.hw + margin && Math.abs(z - c.z) < c.hd + margin
 }
