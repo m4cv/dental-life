@@ -89,13 +89,12 @@ function Head({ lidL, lidR }: { lidL: MutableRefObject<Mesh | null>; lidR: Mutab
       <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} hi />
       {/* painted detail: blush, eyeshadow, brows, lips */}
       <mesh geometry={geo.facePatch} material={mat.faceArt} renderOrder={2} />
-      {/* nose: a low soft bridge blending into a small rounded tip, with wings and nostrils */}
-      <Ell mat={mat.skin} p={[0, -0.0115, skinZ(0, -0.0115) - 0.0009]} s={[0.0026, 0.0125, 0.0016]} shadow={false} />
-      <Ell mat={mat.skin} p={[0, -0.0238, skinZ(0, -0.0238) + 0.002]} s={[0.007, 0.006, 0.0066]} shadow={false} />
+      {/* nose: a small rounded tip with wings and nostrils; the bridge is painted shading */}
+      <Ell mat={mat.skin} p={[0, -0.0235, skinZ(0, -0.0235) + 0.0016]} s={[0.0064, 0.0056, 0.0058]} shadow={false} />
       {[1, -1].map((k) => (
         <group key={k}>
-          <Ell mat={mat.skin} p={[k * 0.0066, -0.0252, skinZ(0.0066, -0.0252) + 0.0004]} s={[0.0042, 0.0038, 0.004]} shadow={false} />
-          <Ell mat={mat.nostril} p={[k * 0.0038, -0.0292, skinZ(0.0038, -0.0292) + 0.0024]} s={[0.0016, 0.001, 0.0013]} shadow={false} />
+          <Ell mat={mat.skin} p={[k * 0.0058, -0.0246, skinZ(0.0058, -0.0246) + 0.0002]} s={[0.0038, 0.0034, 0.0036]} shadow={false} />
+          <Ell mat={mat.nostril} p={[k * 0.0034, -0.0284, skinZ(0.0034, -0.0284) + 0.002]} s={[0.0014, 0.0009, 0.0011]} shadow={false} />
         </group>
       ))}
       <Eye side={1} lidRef={lidL} />
