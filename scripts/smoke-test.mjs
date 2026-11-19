@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import { chromium } from 'playwright-core'
 import { RUN, WALK, pilotStick } from './pilot-law.mjs'
+import { remainingFrom } from '../src/streets/routeLayout.ts'
 
 const URL = process.env.SMOKE_URL ?? 'http://127.0.0.1:4173/'
 const OUT = 'smoke-output'
@@ -807,12 +808,13 @@ try {
   const eastEnd = await read4()
   check('the shops on the east side are solid (she stops at the pavement edge)', !!eastEnd && eastEnd.x > 92 && eastEnd.x < 93.8, fmt4(eastEnd))
 
-  // north along the pavement to the road-works barrier
-  await pushToward(92.4, -60, 15000, { settle: true })
-  const barrier = await read4()
-  check('the barrier closes the road at the north end (she cannot go past it)', !!barrier && barrier.z > -30.1 && barrier.z < -28.9, fmt4(barrier))
+  // north along the pavement: since Stage 7 the old end of the road is open, she walks on past where the barrier stood (z -30)
+  await p4.getByTestId('btn-run').tap()
+  const pastOld = await route([[92.4, -20, { tol: 2.2 }], [92.4, -38, { tol: 2.2 }]], { ms: 60000, run: true })
+  await p4.getByTestId('btn-run').tap()
+  check('Ninety Street is open at its old north end: she walks past where the barrier used to be (z -30)', !!pastOld && pastOld.z < -31 && pastOld.x > 91 && pastOld.x < 93.8, fmt4(pastOld))
   await p4.waitForTimeout(1200)
-  shots5.push(await p4.screenshot({ path: `${OUT}/s5-6-barrier.png` }))
+  shots5.push(await p4.screenshot({ path: `${OUT}/s5-6-old-end.png` }))
 } catch (e) {
   check('the Stage 5 walk finished without an exception', false, String(e.message).split('\n')[0])
 }
@@ -1051,7 +1053,7 @@ try {
 }
 await releaseAll6().catch(() => {})
 
-// north along Ninety Street to the road-works barrier
+// north along Ninety Street: the road is open past where the barrier used to stand (it goes on to the roundabout, Stage 7)
 try {
   const n0 = await openHome('?routine=done&drive=1&car=72.25,25,180', '')
   check('the car can start on the carriageway heading north', !!n0 && Math.abs(n0.x - 72.25) < 1 && Math.abs(n0.z - 25) < 1, fmt4(n0))
@@ -1060,16 +1062,123 @@ try {
   check('on the open road the car reaches a good speed', fast.hit, `${fast.d?.speed} m/s`)
   check('the speedometer reads well above walking speed', (await kmh()) > 25, String(await kmh()))
   shots6.push(await p4.screenshot({ path: `${OUT}/s6-7-fast.png` }))
-  const barrier6 = await until6((d) => d.z < -26.5 && d.speed < 0.3, 120000)
-  check('the road-works barrier stops the car at the north end (z about -28)', barrier6.hit && barrier6.d.z > -30, fmt4(barrier6.d))
+  const past = await until6((d) => d.z < -45, 150000)
+  check('nothing stops the car at the old north end: she drives on past z -30', past.hit, fmt4(past.d))
   await releaseAll6()
   await p4.waitForTimeout(1200)
-  shots6.push(await p4.screenshot({ path: `${OUT}/s6-8-barrier.png` }))
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-8-open-road.png` }))
 } catch (e) {
   check('the Stage 6 north drive finished without an exception', false, String(e.message).split('\n')[0])
 }
 await releaseAll6().catch(() => {})
 printJpeg('sheet6', (await contactSheet(shots6.filter(Boolean), 2, 560)).toString('base64'))
+
+// =============================================================================================
+console.log('\n--- Stage 7: the route to the university (844×390) ---')
+// =============================================================================================
+const shots7 = []
+const clockMin = async () => {
+  const m = ((await p4.getByTestId('clock').innerText().catch(() => '')) || '').match(/(\d+):(\d+)/)
+  return m ? +m[1] * 60 + +m[2] : NaN
+}
+const hud7 = (name) => p4.getByTestId('route-hud').getAttribute(name).catch(() => null)
+const zone7 = () => p4.getByTestId('place').getAttribute('data-zone').catch(() => null)
+const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+// ---- 1. Ninety Street north, the clock and the arrow ----
+try {
+  const a0 = await openHome('?routine=done&drive=1&car=85.75,-60,180', '')
+  check('the drive starts on the east carriageway of Ninety Street, north of where the barrier used to be', !!a0 && Math.abs(a0.x - 85.75) < 1 && Math.abs(a0.z + 60) < 1, fmt4(a0))
+  await p4.getByTestId('route-hud').waitFor({ timeout: 15000 }).catch(() => {})
+  check('with the front door open the route card is there: "University · N m", the arrow, the next instruction', (await hud7('data-phase')) === 'navigating' && Number(await hud7('data-remaining')) > 0 && ((await hud7('data-step')) ?? '').length > 5, `${await hud7('data-remaining')} m, "${await hud7('data-step')}"`)
+  const want0 = remainingFrom(85.75, -60)
+  check('the distance on the card is the distance along the road left to the university', Math.abs(Number(await hud7('data-remaining')) - want0) < 30, `${await hud7('data-remaining')} m, expected about ${Math.round(want0)} m`)
+  await p4.waitForTimeout(2500)
+  const arrow0 = Number(await hud7('data-arrow'))
+  check('facing north on the road the arrow points straight ahead', Math.abs(arrow0) < 25, `${arrow0}°`)
+  const rbox = await p4.getByTestId('route-hud').boundingBox()
+  const clockBox7 = await p4.getByTestId('clock').boundingBox()
+  const placeBox7 = await p4.getByTestId('place').boundingBox()
+  const listBox7 = await p4.getByTestId('routine-hud').boundingBox()
+  const diagBox7 = await p4.getByTestId('diagnostics').boundingBox().catch(() => null)
+  const speedBox7 = await speedo().boundingBox()
+  check('the route card is on the screen and covers nothing: not the clock, the place chip, the checklist, the read-out or the speedometer', inside4(rbox) && !overlap(rbox, clockBox7) && !overlap(rbox, placeBox7) && !overlap(rbox, listBox7) && (!diagBox7 || !overlap(rbox, diagBox7)) && !overlap(rbox, speedBox7), JSON.stringify(rbox))
+  const c0 = await clockMin()
+  check('the clock stands at 07:00 when she leaves', c0 === 7 * 60, hhmm(c0))
+  await setDrive({ pedal: 'gas' })
+  const far = await until6((d) => d.z < -230, 180000)
+  check('she drives north up Ninety Street, 170 m of it', far.hit, fmt4(far.d))
+  const c1 = await clockMin()
+  check('the clock moved on with the distance: three to five game minutes for 170 m', c1 - c0 >= 3 && c1 - c0 <= 6, `${hhmm(c0)} → ${hhmm(c1)}`)
+  const left1 = Number(await hud7('data-remaining'))
+  check('the distance on the card went down as she drove', left1 < want0 - 120, `${Math.round(want0)} → ${left1} m`)
+  const arrow1 = Number(await hud7('data-arrow'))
+  check('the arrow still points ahead on the straight', Math.abs(arrow1) < 25, `${arrow1}°`)
+  shots7.push(await p4.screenshot({ path: `${OUT}/s7-1-ninety-north.png` }))
+  // on to the roundabout: the island bends her path and the buildings beyond it stop the car
+  const ring = await until6((d) => d.z < -409, 180000)
+  check('the chip says Ninety Street roundabout when she gets there', ring.hit && (await waitZone('junction', 8000)), fmt4(ring.d))
+  shots7.push(await p4.screenshot({ path: `${OUT}/s7-2-roundabout.png` }))
+  const stopN = await until6((d) => d.z < -428 && d.speed < 0.5, 90000)
+  check('she cannot drive through the island or the buildings north of the roundabout (the car stops at z about -433)', stopN.hit && stopN.d.z > -435.5, fmt4(stopN.d))
+  await releaseAll6()
+} catch (e) {
+  check('the Stage 7 Ninety Street drive finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+
+// ---- 2. Al-Shaab Street, straight along it to its west end ----
+try {
+  const w0 = await openHome('?routine=done&drive=1&car=-40,-424,270', '')
+  check('the car can start on Al-Shaab Street heading west', !!w0 && Math.abs(w0.x + 40) < 1 && Math.abs(w0.z + 424) < 1, fmt4(w0))
+  check('the chip says Al-Shaab Street', await waitZone('shaab', 8000))
+  await setDrive({ pedal: 'gas' })
+  const gate = await until6((d) => d.x < -150, 180000)
+  check('she drives west along the street, past the university gate', gate.hit && gate.d.z > -427 && gate.d.z < -421, fmt4(gate.d))
+  shots7.push(await p4.screenshot({ path: `${OUT}/s7-3-shaab-street.png` }))
+  const end = await until6((d) => d.x < -224 && d.speed < 0.5, 120000)
+  check('the street ends at a wall of buildings at its west end (x about -228)', end.hit && end.d.x > -229.8, fmt4(end.d))
+  await releaseAll6()
+} catch (e) {
+  check('the Stage 7 Al-Shaab Street drive finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+
+// ---- 3. through the gate: arrival, the forecourt, the steps ----
+try {
+  const g0 = await openHome('?routine=done&drive=1&car=-160,-424,180', '')
+  check('the car can start on the street in line with the university gate, facing it', !!g0 && Math.abs(g0.x + 160) < 1 && Math.abs(g0.z + 424) < 1, fmt4(g0))
+  const cBefore = await clockMin()
+  check('before she gets there the route card is up and nothing says she has arrived', (await hud7('data-phase')) === 'navigating' && (await p4.getByTestId('routine-step-arrive').getAttribute('data-done')) === 'false')
+  await setDrive({ pedal: 'gas' })
+  const inGate = await until6((d) => d.z < -437, 120000)
+  check('she drives in through the gate', inGate.hit && Math.abs(inGate.d.x + 160) < 3, fmt4(inGate.d))
+  await p4.locator('[data-testid="route-hud"][data-phase="arrived"]').waitFor({ timeout: 15000 }).catch(() => {})
+  check('the route card says she has arrived, with the time', (await hud7('data-phase')) === 'arrived' && /arrived at the university/i.test((await p4.getByTestId('route-hud').innerText().catch(() => '')) || '') && /\d\d:\d\d/.test((await p4.getByTestId('route-hud').innerText().catch(() => '')) || ''), ((await p4.getByTestId('route-hud').innerText().catch(() => '')) || '').replace(/\n/g, ' '))
+  check('the checklist ticks "Reach the university" and the chip names the university', (await p4.getByTestId('routine-step-arrive').getAttribute('data-done')) === 'true' && (await waitZone('university', 6000)))
+  const cAfter = await clockMin()
+  check('the clock moved on only a little between the street and the gate, never backwards', cAfter >= cBefore && cAfter - cBefore <= 2, `${hhmm(cBefore)} → ${hhmm(cAfter)}`)
+  const upto = await until6((d) => d.z < -452, 90000)
+  check('she drives on across the forecourt', upto.hit, fmt4(upto.d))
+  const stopped7 = await stopCar()
+  check('and stops the car in front of the main building', !!stopped7 && stopped7.z < -452 && stopped7.z > -472, fmt4(stopped7))
+  await p4.waitForTimeout(1200)
+  shots7.push(await p4.screenshot({ path: `${OUT}/s7-4-forecourt.png` }))
+  check('the button says "Get out"', await waitLabel('Get out'))
+  await btn().tap()
+  await p4.waitForFunction(() => !document.querySelector('[data-testid="speedometer"]'), null, { timeout: 15000 }).catch(() => {})
+  const onFoot = await walkTo(-160, -467, { tol: 0.8, ms: 90000 })
+  check('on foot she walks up to the steps of the main entrance', !!onFoot && onFoot.z < -465, fmt4(onFoot))
+  await pushToward(-160, -490, 3500, { settle: true })
+  const door = await read4()
+  check('the entrance is closed (it opens in Stage 8): she stops at the foot of the steps', !!door && door.z > -472.4 && door.z < -468, fmt4(door))
+  await p4.waitForTimeout(1500)
+  shots7.push(await p4.screenshot({ path: `${OUT}/s7-5-entrance.png` }))
+} catch (e) {
+  check('the Stage 7 gate and forecourt finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+printJpeg('sheet7', (await contactSheet(shots7.filter(Boolean), 2, 560)).toString('base64'))
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 

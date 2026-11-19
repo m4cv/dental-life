@@ -17,10 +17,10 @@ export interface Street {
   dispose: () => void
 }
 
-const std = (color: string, roughness = 0.95, metalness = 0) => new MeshStandardMaterial({ color, roughness, metalness })
-const tex = (map: MeshStandardMaterial['map'], roughness = 0.95, color = '#ffffff') => new MeshStandardMaterial({ map, roughness, color })
+export const std = (color: string, roughness = 0.95, metalness = 0) => new MeshStandardMaterial({ color, roughness, metalness })
+export const tex = (map: MeshStandardMaterial['map'], roughness = 0.95, color = '#ffffff') => new MeshStandardMaterial({ map, roughness, color })
 
-function materials() {
+export function materials() {
   const paving = pavingTexture()
   return {
     asphalt: tex(asphaltTexture(), 0.97),
@@ -48,12 +48,12 @@ function materials() {
     shop: [0, 1, 2, 3, 4].map((a) => tex(shopBayTexture(a))),
   }
 }
-type Mats = ReturnType<typeof materials>
+export type Mats = ReturnType<typeof materials>
 
-const cx = (r: Rect) => (r.x0 + r.x1) / 2
-const cz = (r: Rect) => (r.z0 + r.z1) / 2
-const sx = (r: Rect) => r.x1 - r.x0
-const sz = (r: Rect) => r.z1 - r.z0
+export const cx = (r: Rect) => (r.x0 + r.x1) / 2
+export const cz = (r: Rect) => (r.z0 + r.z1) / 2
+export const sx = (r: Rect) => r.x1 - r.x0
+export const sz = (r: Rect) => r.z1 - r.z0
 
 /** A number in 0..1 that depends only on the text and the index, so the street never changes. */
 function hash01(text: string, k: number): number {
@@ -65,8 +65,8 @@ function hash01(text: string, k: number): number {
 // ---------------------------------------------------------------------------------------------
 
 /** Heights above the ground sheet (y = -0.1 in the home): asphalt and paving at -0.04, paint above. */
-const Y_ROAD = -0.04
-const Y_PAINT = -0.034
+export const Y_ROAD = -0.04
+export const Y_PAINT = -0.034
 
 function roads(b: Batch, m: Mats): void {
   for (const r of ASPHALT) b.plane(m.asphalt, sx(r), sz(r), [cx(r), Y_ROAD, cz(r)], [-Math.PI / 2, 0, 0], [sx(r) / 4, sz(r) / 4])
@@ -94,7 +94,7 @@ function roads(b: Batch, m: Mats): void {
 
 // ---------------------------------------------------------------------------------------------
 
-function building(b: Batch, m: Mats, lot: Lot): void {
+export function building(b: Batch, m: Mats, lot: Lot): void {
   const r = lot.rect
   const w = sx(r)
   const d = sz(r)
@@ -163,7 +163,7 @@ function plot(b: Batch, m: Mats): void {
 
 // ---------------------------------------------------------------------------------------------
 
-function palm(b: Batch, m: Mats, x: number, z: number, h: number): void {
+export function palm(b: Batch, m: Mats, x: number, z: number, h: number): void {
   const trunkH = h * 0.86
   b.cyl(m.trunk, 0.13, 0.2, trunkH, [x, trunkH / 2, z], 8)
   const top = trunkH
@@ -180,7 +180,7 @@ function palm(b: Batch, m: Mats, x: number, z: number, h: number): void {
   b.sphere(m.frond, 0.22, [x, top + 0.05, z], 8)
 }
 
-function lamp(b: Batch, m: Mats, x: number, z: number): void {
+export function lamp(b: Batch, m: Mats, x: number, z: number): void {
   b.cyl(m.pole, 0.15, 0.17, 0.5, [x, 0.25, z], 10)
   b.cyl(m.pole, LAMP_R * 0.55, LAMP_R * 0.75, 6.2, [x, 3.6, z], 10)
   // a double arm over both carriageways, a lamp head at each end
@@ -191,7 +191,7 @@ function lamp(b: Batch, m: Mats, x: number, z: number): void {
   }
 }
 
-function bin(b: Batch, m: Mats, x: number, z: number): void {
+export function bin(b: Batch, m: Mats, x: number, z: number): void {
   b.box(m.bin, [BIN.hw * 2, BIN.h - 0.08, BIN.hd * 2], [x, (BIN.h - 0.08) / 2, z])
   b.box(m.binLid, [BIN.hw * 2 + 0.04, 0.08, BIN.hd * 2 + 0.04], [x, BIN.h - 0.04, z])
 }

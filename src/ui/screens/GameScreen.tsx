@@ -5,6 +5,7 @@ import { CharacterPreviewPanel } from '@/ui/components/CharacterPreviewPanel'
 import { Diagnostics } from '@/ui/components/Diagnostics'
 import { DriveHud } from '@/ui/components/DriveHud'
 import { RotatePrompt } from '@/ui/components/RotatePrompt'
+import { RouteHud } from '@/ui/components/RouteHud'
 import { RoutineHud } from '@/ui/components/RoutineHud'
 import { CharacterShowcase } from '@/world/CharacterShowcase'
 import { HomeScene } from '@/world/HomeScene'
@@ -51,6 +52,8 @@ export default function GameScreen() {
       </div>
 
       {!PREVIEW_MODE && !COURTYARD_MODE && <RoutineHud showPlace={!HOME_ONLY_MODE} />}
+
+      {!PREVIEW_MODE && !COURTYARD_MODE && !HOME_ONLY_MODE && <RouteHud />}
 
       {!PREVIEW_MODE && <DriveHud />}
 

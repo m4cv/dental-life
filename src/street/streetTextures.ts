@@ -11,7 +11,7 @@ export const DOORS = ['#5b3a29', '#2f4f6f', '#3d5d3f', '#6b6e72', '#7a2f2f'] as 
 /** Sign colours of the shops (the last two are open shops with a lit interior). */
 export const SIGNS = ['#2d5aa8', '#b8352f', '#2f8a4b', '#d98a1f', '#6b4a9a'] as const
 
-function make(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+export function make(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
@@ -20,7 +20,7 @@ function make(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2
   return [c, g]
 }
 
-function finish(c: HTMLCanvasElement): CanvasTexture {
+export function finish(c: HTMLCanvasElement): CanvasTexture {
   const t = new CanvasTexture(c)
   t.wrapS = t.wrapT = RepeatWrapping
   t.colorSpace = SRGBColorSpace
@@ -29,7 +29,7 @@ function finish(c: HTMLCanvasElement): CanvasTexture {
 }
 
 /** Tiny deterministic generator so every run draws the same speckles. */
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0
   return () => {
     a = (a * 1664525 + 1013904223) >>> 0
@@ -38,7 +38,7 @@ function rng(seed: number): () => number {
 }
 
 /** Plaster: the base colour plus faint speckles and a darker streak under the roof edge. */
-function plaster(g: CanvasRenderingContext2D, w: number, h: number, color: string, seed: number): void {
+export function plaster(g: CanvasRenderingContext2D, w: number, h: number, color: string, seed: number): void {
   g.fillStyle = color
   g.fillRect(0, 0, w, h)
   const r = rng(seed)

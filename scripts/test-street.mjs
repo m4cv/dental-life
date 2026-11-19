@@ -67,7 +67,7 @@ check('Ninety Street is 30 m wide and its parts meet exactly', (() => {
   return b.x1 - b.x0 === 30 && b.pavementW[1] === b.carriageW[0] && b.carriageW[1] === b.median[0] && b.median[1] === b.carriageE[0] && b.carriageE[1] === b.pavementE[0] && b.pavementE[1] === b.x1
 })())
 check('the lanes are six metres wide and meet the pavement of Ninety Street', LANES.filter((l) => !l.id.startsWith('cross')).every((l) => Math.abs(l.rect.z1 - l.rect.z0 - 6) < EPS && l.rect.x1 === BOULEVARD.x0))
-check('the barriers close Ninety Street edge to edge at both ends', BARRIERS.length === 2 && BARRIERS.every((b) => b.x0 === BOULEVARD.x0 && b.x1 === BOULEVARD.x1))
+check('the road-works barrier closes the south end of Ninety Street edge to edge (the north end is open since Stage 7)', BARRIERS.length === 1 && BARRIERS.every((b) => b.x0 === BOULEVARD.x0 && b.x1 === BOULEVARD.x1 && b.z0 > 30))
 
 // ---- the plot and the house -----------------------------------------------------------------------
 check('the house rectangles do not overlap each other', HOUSE_RECTS.every((a, i) => HOUSE_RECTS.every((b, j) => i >= j || !overlap(a, b))))
@@ -185,7 +185,7 @@ const WANTED = {
 }
 for (const [name, p] of Object.entries(WANTED)) check(`reachable on foot from the porch: ${name}`, open.free(p[0], p[1]) && open.reach(p[0], p[1]), `${p[0]}, ${p[1]}`)
 check('the inside of a building is not reachable', LOTS.every((l) => !open.reach((l.rect.x0 + l.rect.x1) / 2, (l.rect.z0 + l.rect.z1) / 2)))
-check('nothing beyond the barriers is reachable', !open.reach(79, -31.5) && !open.reach(79, 33.0) && !open.reach(125, 0))
+check('nothing beyond the south barrier or the east shops is reachable', !open.reach(79, 33.0) && !open.reach(125, 0))
 {
   const shut = flooder(true, PLAYER_RADIUS, [HOME_SPAWN.x, HOME_SPAWN.z])
   check('with the front door shut she cannot get out of the house', !shut.reach(2.5, 1.0) && !shut.reach(63.6, 7.6) && shut.reach(1.7, -1.2))

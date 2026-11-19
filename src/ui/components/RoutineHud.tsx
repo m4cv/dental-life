@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { ROUTINE_STEPS, formatClock } from '@/home/routine'
 import { usePlayerStore } from '@/state/usePlayerStore'
 import { usePromptStore } from '@/state/usePromptStore'
+import { useRouteStore } from '@/state/useRouteStore'
 import { useRoutineStore } from '@/state/useRoutineStore'
-import { ZONE_NAMES, zoneAt } from '@/street/streetLayout'
+import { ZONE_NAMES } from '@/street/streetLayout'
+import { worldZoneAt } from '@/streets/routeLayout'
 
-/** Where she is, by name (home, yard, lane, Ninety Street). Reads the 4 Hz position the rig publishes. */
+/** Where she is, by name (home, yard, lane, Ninety Street, the roundabout, Al-Shaab Street, the university). Reads the 4 Hz position the rig publishes. */
 function PlaceChip() {
-  const zone = usePlayerStore((s) => zoneAt(s.x, s.z))
+  const zone = usePlayerStore((s) => worldZoneAt(s.x, s.z))
   return (
     <div data-testid="place" data-zone={zone} className="rounded-full bg-black/45 px-3 py-1 text-sm text-white backdrop-blur">
       {ZONE_NAMES[zone]}
@@ -19,6 +21,7 @@ function PlaceChip() {
 export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
   const routine = useRoutineStore((s) => s.routine)
   const toast = useRoutineStore((s) => s.toast)
+  const arrived = useRouteStore((s) => s.arrivedAt !== null)
   const busy = usePromptStore((s) => s.busy)
   const [shownToast, setShownToast] = useState<string | null>(null)
 
@@ -56,6 +59,9 @@ export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
         })}
         <li data-testid="routine-step-door" data-done={routine.doorOpen} className={routine.doorOpen ? 'text-emerald-300 line-through' : 'text-amber-200'}>
           {routine.doorOpen ? '✓' : '○'} Leave for university
+        </li>
+        <li data-testid="routine-step-arrive" data-done={arrived} className={arrived ? 'text-emerald-300 line-through' : routine.doorOpen ? 'text-amber-200' : ''}>
+          {arrived ? '✓' : '○'} Reach the university
         </li>
       </ul>
 

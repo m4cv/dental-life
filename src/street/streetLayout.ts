@@ -107,11 +107,11 @@ export const CROSSING = { z0: 6.1, z1: 9.1 }
 /** The playable area. Everything beyond is scenery that fades into the haze. */
 export const WORLD_BOUNDS: Bounds = { minX: -56, maxX: 124, minZ: -31, maxZ: 33.2 }
 
-/** Road-works barriers close Ninety Street at both ends of the playable stretch (the route comes in Stage 7). */
-export const BARRIERS: Rect[] = [
-  { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: -30.6, z1: -30 },
-  { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: 32.6, z1: 33.2 },
-]
+/**
+ * A road-works barrier closes Ninety Street at its south end. (Until Stage 6 there was one at the north end
+ * too; since Stage 7 the road goes on north to the roundabout and the university, see streets/routeLayout.ts.)
+ */
+export const BARRIERS: Rect[] = [{ x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: 32.6, z1: 33.2 }]
 export const BARRIER_H = 1.1
 
 // ---------------------------------------------------------------------------------------------
@@ -145,7 +145,7 @@ export interface Lot {
   tank: boolean
 }
 
-interface Row {
+export interface Row {
   id: string
   rect: Rect
   axis: 'x' | 'z'
@@ -220,7 +220,7 @@ function pickFloors(style: LotStyle, r: number): number {
 }
 
 /** Splits a row into lots of varied widths that exactly fill it. */
-function splitRow(row: Row, rng: () => number): Lot[] {
+export function splitRow(row: Row, rng: () => number): Lot[] {
   const { rect, axis, style } = row
   const a0 = axis === 'x' ? rect.x0 : rect.z0
   const a1 = axis === 'x' ? rect.x1 : rect.z1
@@ -323,13 +323,16 @@ export const STREET_COLLIDERS: Collider[] = [
 // Where she is: names for the HUD, and the indoor / outdoor switch for the camera and the light.
 // ---------------------------------------------------------------------------------------------
 
-export type ZoneId = 'home' | 'yard' | 'lane' | 'boulevard'
+export type ZoneId = 'home' | 'yard' | 'lane' | 'boulevard' | 'junction' | 'shaab' | 'university'
 
 export const ZONE_NAMES: Record<ZoneId, string> = {
   home: 'At home',
   yard: 'Home yard',
   lane: 'Neighbourhood lane',
   boulevard: 'Ninety Street',
+  junction: 'Ninety Street roundabout',
+  shaab: 'Al-Shaab Street',
+  university: 'University of Science & Technology',
 }
 
 const inRect = (r: Rect, x: number, z: number) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1

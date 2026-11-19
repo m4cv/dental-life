@@ -17,6 +17,10 @@ interface RoutineStore {
   finish: (spot: Spot['id']) => void
   /** Testing aid (?routine=done): the whole morning already done and the front door open. */
   skipToDoor: () => void
+  /** The clock moves on while she travels (Stage 7). Only once the front door is open: indoors the steps set the time. */
+  advance: (minutes: number) => void
+  /** A short message at the top of the screen. */
+  say: (text: string) => void
 }
 
 let toastId = 0
@@ -26,6 +30,12 @@ export const useRoutineStore = create<RoutineStore>()((set, get) => ({
   routine: initialRoutine(),
   toast: null,
   reset: () => set({ routine: initialRoutine(), toast: null }),
+  advance: (minutes) => {
+    const { routine } = get()
+    if (!routine.doorOpen || !(minutes > 0)) return
+    set({ routine: { ...routine, minutes: routine.minutes + minutes } })
+  },
+  say: (text) => set({ toast: toast(text) }),
   skipToDoor: () => {
     const all = ROUTINE_STEPS.reduce((r, s) => completeStep(r, s.id), initialRoutine())
     set({ routine: openDoor(all), toast: null })

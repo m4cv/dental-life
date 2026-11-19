@@ -57,6 +57,11 @@ export interface RigConfig {
    * keep the tight-space camera without a ceiling, or undefined for the open-air camera).
    */
   ceilingY?: number | ((x: number, z: number) => number | undefined)
+  /**
+   * Called about four times a second with the metres the body (her, or the car she drives) has moved since the last
+   * call and where it is now: the scene advances the clock and notices arrival from it.
+   */
+  onTravel?: (metres: number, x: number, z: number) => void
   /** Wanted camera distance when a game starts (the player can pinch to change it). */
   camDist?: number
   sun: { offset: readonly [number, number, number]; intensity: number; half: number; far?: number }
@@ -99,6 +104,9 @@ export function PlayerRig({ config }: { config: RigConfig }) {
   const sunNow = useRef({ offset: [...sunCfg.offset] as [number, number, number], intensity: sunCfg.intensity })
   const recenterTo = useRef<number | null>(null)
   const readoutClock = useRef(0)
+  /** Where the body was last frame and how far it has gone since the last report (a jump of 4 m or more is a teleport, not travel). */
+  const lastBody = useRef<[number, number] | null>(null)
+  const travelled = useRef(0)
   const action = useRef<Action | null>(null)
   const shownPrompt = useRef('')
   const shownProgress = useRef(-1)
@@ -110,6 +118,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     const k = car.current
     if (!vehicle || !k) return
     driving.current = true
+    lastBody.current = null
     useDriveStore.setState({ driving: true, kmh: 0, gear: 'D' })
     walkCam.current = { dist: c.dist, pitch: c.pitch }
     c.dist = DRIVE_CAM.dist
@@ -138,6 +147,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     p.speed = 0
     p.heading = spot.heading
     driving.current = false
+    lastBody.current = null
     useDriveStore.setState({ driving: false, kmh: 0, gear: 'D' })
     const c = cam.current
     c.dist = walkCam.current.dist || c.dist
@@ -317,6 +327,12 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     // ---- place the camera (spring-arm keeps it out of walls, ceiling and ground) ----
     const fx = isDriving && k ? k.x : p.x
     const fz = isDriving && k ? k.z : p.z
+    const was = lastBody.current
+    if (was) {
+      const d = Math.hypot(fx - was[0], fz - was[1])
+      if (d < 4) travelled.current += d
+    }
+    lastBody.current = [fx, fz]
     const pivot: [number, number, number] = [fx, groundY + (isDriving ? DRIVE_CAM.pivotY : CAM.pivotY), fz]
     const ceiling = typeof ceilingY === 'function' ? ceilingY(fx, fz) : ceilingY
     let pitch = c.pitch
@@ -347,6 +363,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     readoutClock.current += delta
     if (readoutClock.current >= 0.25) {
       readoutClock.current = 0
+      config.onTravel?.(travelled.current, fx, fz)
+      travelled.current = 0
       const deg = Math.round(((c.yaw * 180) / Math.PI + 360) % 360)
       if (isDriving && k) {
         usePlayerStore.setState({ x: k.x, z: k.z, speed: Math.abs(k.speed), camDeg: deg, camDist: c.dist })

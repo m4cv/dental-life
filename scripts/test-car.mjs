@@ -2,7 +2,8 @@
 import { buildGrid, queryGrid } from '../src/controls/spatial.ts'
 import { PLAYER_RADIUS, pointBlocked, resolveCollisions } from '../src/controls/movement.ts'
 import { HOME_COLLIDERS } from '../src/home/homeLayout.ts'
-import { STREET_COLLIDERS, WORLD_BOUNDS, LANES, BARRIERS } from '../src/street/streetLayout.ts'
+import { STREET_COLLIDERS, WORLD_BOUNDS, LANES } from '../src/street/streetLayout.ts'
+import { ISLAND, PLAZA, ROUTE_BOUNDS, WORLD_COLLIDERS } from '../src/streets/routeLayout.ts'
 import { CAR, ENTER_REACH, NO_INPUT, carCirclePoints, carColliders, carLeft, createCar, distanceToCar, exitSpot, steerLimit, stepCar } from '../src/vehicle/carPhysics.ts'
 import { PARKED_CAR, carFromQuery, startsDriving } from '../src/vehicle/carLayout.ts'
 
@@ -178,9 +179,9 @@ const wall = { kind: 'box', x: 0, z: 20, hw: 50, hd: 0.125, height: 3 } // a 25 
 }
 
 // ---- driving through the real neighbourhood ----------------------------------------------------
-const WORLD = [...HOME_COLLIDERS, ...STREET_COLLIDERS]
-const GRID = buildGrid(WORLD, WORLD_BOUNDS, 12, 3.2)
-const stepWorld = (car, input, dt = 1 / 30) => stepCar(car, input, dt, queryGrid(GRID, car.x, car.z), WORLD_BOUNDS)
+const WORLD = WORLD_COLLIDERS
+const GRID = buildGrid(WORLD, ROUTE_BOUNDS, 12, 3.2)
+const stepWorld = (car, input, dt = 1 / 30) => stepCar(car, input, dt, queryGrid(GRID, car.x, car.z), ROUTE_BOUNDS)
 const inside = (car) => carCirclePoints(car).some(([x, z]) => WORLD.some((c) => overlaps(x, z, CAR.circleRadius, c)))
 {
   // 1. from the parking place along the lane to Ninety Street, across it, into the shops: a pursuit autopilot
@@ -206,13 +207,12 @@ const inside = (car) => carCirclePoints(car).some(([x, z]) => WORLD.some((c) => 
   check('the drive takes less than 20 seconds', (() => { const c = createCar(PARKED_CAR.x, PARKED_CAR.z, PARKED_CAR.heading); let tt = 0; while (c.x < 90 && tt < 40) { stepWorld(c, pursue(c, ...(c.x < 58 ? [c.x + 9, 7.6] : [120, 7.6]))); tt += 1 / 30 } return tt < 20 })())
 }
 {
-  // 2. north along the carriageway to the road-works barrier
-  const car = createCar(72.25, 25, Math.PI)
+  // 2. north along the carriageway, the whole length of Ninety Street: the roundabout's island stops her
+  const car = createCar(85.75, 25, Math.PI)
   let t = 0
   let clipped = false
-  while (t < 20) { stepWorld(car, { throttle: 1, brake: 0, steer: 0 }); if (inside(car)) clipped = true; t += 1 / 30 }
-  const barrier = BARRIERS.find((b) => b.z1 < 0)
-  check('she drives the length of Ninety Street at speed and the road-works barrier stops her', !clipped && !!barrier && car.z - CAR.circleOffsets[3] - CAR.circleRadius >= barrier.z1 - 1e-6 && car.z < barrier.z1 + 3, `z ${f2(car.z)}`)
+  while (t < 60) { stepWorld(car, { throttle: 1, brake: 0, steer: 0 }); if (inside(car)) clipped = true; t += 1 / 30 }
+  check('she drives the length of Ninety Street at speed, 450 m non-stop; the island bends her path and the buildings north of the roundabout stop her', !clipped && car.z < ISLAND.z && near(car.z, PLAZA.z0 + CAR.circleOffsets[3] + CAR.circleRadius, 0.3), `z ${f2(car.z)}, x ${f2(car.x)}`)
 }
 {
   // 3. a three-point turn in the 6 m lane (the car is parked facing east; she wants to go west)
