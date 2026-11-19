@@ -176,7 +176,17 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
 
   const a = createCam(0)
   applyLook(a, 100, 0)
-  check('dragging right turns the view left (yaw grows)', a.yaw > 0.4)
+  check('dragging right turns the view to the right (heading shrinks)', a.yaw < -0.4)
+  {
+    // physical check: from yaw 0 she looks along +z and her right-hand side is -x
+    const r = createCam(0)
+    applyLook(r, 80, 0)
+    const fwd = [Math.sin(r.yaw), Math.cos(r.yaw)]
+    check('after a drag to the right the camera looks toward its right-hand side', fwd[0] * -1 > 0.3, `forward ${fwd.map((v) => v.toFixed(2))}`)
+    const l = createCam(0)
+    applyLook(l, -80, 0)
+    check('after a drag to the left it looks toward its left-hand side', Math.sin(l.yaw) > 0.3)
+  }
   const b = createCam(0)
   const before = b.pitch
   applyLook(b, 0, 60)

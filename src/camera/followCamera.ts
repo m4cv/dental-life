@@ -43,11 +43,11 @@ export function createCam(yaw: number): CamRig {
 }
 
 /**
- * Drag right turns the view left (the world follows the finger), drag down lifts the camera.
- * `zoom` is positive to zoom out.
+ * The drag is a head turn: dragging right turns the view to the right (the compass heading
+ * shrinks), dragging down looks down (the camera rises). `zoom` is positive to zoom out.
  */
 export function applyLook(cam: CamRig, dxPx: number, dyPx: number, zoomPx = 0): void {
-  cam.yaw = wrapAngle(cam.yaw + dxPx * CAM.yawPerPx)
+  cam.yaw = wrapAngle(cam.yaw - dxPx * CAM.yawPerPx)
   cam.pitch = clamp(cam.pitch + dyPx * CAM.pitchPerPx, CAM.pitchMin, CAM.pitchMax)
   cam.dist = clamp(cam.dist + zoomPx * CAM.zoomPerPx, CAM.distMin, CAM.distMax)
 }

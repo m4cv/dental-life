@@ -353,11 +353,12 @@ const shotWall = await p3.screenshot({ path: `${OUT}/s3-4-wall.png` })
 
 // ---- 5. camera drag on the right half ----
 const camBefore = (await readDebug()).cam
-await touchEvent('touchStart', [[700, 200, 5]])
-for (const x of [680, 660, 640, 620, 600]) await touchEvent('touchMove', [[x, 200, 5]])
+await touchEvent('touchStart', [[600, 200, 5]])
+for (const x of [620, 640, 660, 680, 700]) await touchEvent('touchMove', [[x, 200, 5]])
 await touchEvent('touchEnd', [])
 const turned = await until((d) => angleDiff(d.cam, camBefore) > 20, 30000)
 check('dragging the right half turns the camera by the drag distance (about 31°)', !!turned && angleDiff(turned.cam, camBefore) > 20 && angleDiff(turned.cam, camBefore) < 45, `${camBefore}° → ${turned?.cam}°`)
+check('dragging to the right turns the view to the right (compass heading goes down, 180° → about 148°)', !!turned && turned.cam < camBefore && turned.cam > camBefore - 45, `${camBefore}° → ${turned?.cam}°`)
 const shotLook = await p3.screenshot({ path: `${OUT}/s3-5-look.png` })
 
 // ---- 6. recenter ----
@@ -366,8 +367,8 @@ const centred = await until((d) => angleDiff(d.cam, 180) < 6, 30000)
 check('Recenter swings the camera back behind her', !!centred && angleDiff(centred.cam, 180) < 6, fmt(centred))
 
 // ---- 7. camera-relative steering: turn the camera, push forward, she slides along the wall ----
-await touchEvent('touchStart', [[700, 200, 5]])
-for (const x of [680, 660, 640, 620, 600]) await touchEvent('touchMove', [[x, 200, 5]])
+await touchEvent('touchStart', [[600, 200, 5]])
+for (const x of [620, 640, 660, 680, 700]) await touchEvent('touchMove', [[x, 200, 5]])
 await touchEvent('touchEnd', [])
 await until((d) => angleDiff(d.cam, 180) > 20, 30000)
 const slideStart = await readDebug()
