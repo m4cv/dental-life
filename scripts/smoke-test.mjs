@@ -230,7 +230,7 @@ printJpeg('face', faceJpeg.toString('base64'))
 // =============================================================================================
 // Stage 3: the playable scene and the touch controls, driven with real multi-touch events
 // =============================================================================================
-console.log('\n--- Stage 3: touch controls (phone held sideways, 844×390) ---')
+console.log('\n--- Stage 3: touch controls in the courtyard test set (?scene=courtyard, phone held sideways, 844×390) ---')
 // Software rendering is slow, so this part runs at 1x pixel density (4x fewer pixels) to get more
 // simulated seconds per real second. The simulation clamps each frame to 0.5 s, so slow frames
 // still advance the game.
@@ -269,7 +269,7 @@ const until = async (pred, ms) => {
 const fmt = (d) => (d ? d.text.replace(/\s+/g, ' ') : 'no read-out')
 const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
 
-await p3.goto(URL)
+await p3.goto(`${URL}?scene=courtyard`)
 await p3.getByRole('heading', { name: 'Dental Life' }).waitFor()
 // the main menu has to fit a landscape phone without scrolling (also on a small 640×360 one)
 const menuFits = async () => {
@@ -633,8 +633,11 @@ shots4.bed = await p4.screenshot({ path: `${OUT}/s4-1-bedroom.png` })
 check('the bedroom renders something different from the courtyard', (await diffShare(shots4.bed, shotStart)) > 0.05)
 
 // ---- 1. the mirror, a few steps from the bed ----
+try {
 await walkTo(5.15, -5.35, { tol: 0.45, slow: true })
 await doStep('mirror', 'Check mirror', '06:36', { lockTest: true })
+// first pictures out early, in case something later goes wrong
+printJpeg('sheet4a', (await contactSheet([shots4.bed, shots4.button, shots4.act].filter(Boolean), 2, 560)).toString('base64'))
 
 // ---- 2. get dressed, beside the wardrobe ----
 await route([[4.5, -4.8, { tol: 0.35 }], [4.5, -3.95, { tol: 0.4, slow: true }]])
@@ -655,13 +658,13 @@ check('the shut front door stops her (she cannot walk through it)', !!leaned && 
 shots4.door = await p4.screenshot({ path: `${OUT}/s4-4-front-door-shut.png` })
 
 // ---- 4. dining area: pack the notebook, have breakfast ----
-await route([[2.55, -2.4, { tol: 0.35 }], [2.55, -4.9, { tol: 0.35 }], [2.75, -6.1, { tol: 0.3 }], [2.7, -6.95, { tol: 0.3 }], [2.45, -7.2, { tol: 0.3 }], [2.45, -7.95, { tol: 0.4, slow: true }]])
+await route([[2.55, -2.4, { tol: 0.35 }], [2.55, -4.9, { tol: 0.35 }], [2.75, -6.1, { tol: 0.3 }], [2.7, -6.95, { tol: 0.3 }], [2.45, -7.2, { tol: 0.3 }], [2.45, -8.2, { tol: 0.3, slow: true }]])
 await doStep('pack', 'Pack notebook', '06:44')
-await route([[2.45, -7.1, { tol: 0.3 }], [4.95, -7.0, { tol: 0.3 }], [4.95, -7.95, { tol: 0.4, slow: true }]])
+await route([[2.45, -7.1, { tol: 0.3 }], [4.95, -7.0, { tol: 0.3 }], [4.95, -8.1, { tol: 0.3, slow: true }]])
 await doStep('eat', 'Have breakfast', '06:56')
 
 // ---- 5. bathroom: brush teeth ----
-await route([[5.0, -7.95, { tol: 0.3 }], [5.9, -7.95, { tol: 0.4, slow: true }]])
+await route([[5.0, -7.95, { tol: 0.3 }], [5.9, -7.95, { tol: 0.3, slow: true }]])
 await doStep('brush', 'Brush teeth', '07:00')
 check('all five steps are ticked and the clock reads 07:00', (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 5 && (await clock()) === '07:00')
 check('leaving is still not ticked', (await p4.getByTestId('routine-step-door').getAttribute('data-done')) === 'false')
@@ -672,7 +675,7 @@ check('she walks all the way back through the house to the front door', !!backHo
 const leaveLabel = await buttonLabel()
 check('after the routine the "Leave home" button is lit up and enabled', leaveLabel === 'Leave home' && (await btn().isEnabled()), `${leaveLabel}`)
 check('and the greyed-out note is gone', (await p4.getByTestId('interact-note').count()) === 0)
-await btn().tap()
+if (await btn().isEnabled()) await btn().tap()
 await p4.getByTestId('action-progress').waitFor({ timeout: 5000 }).catch(() => {})
 check('the door ticks off the checklist once it has opened', await waitDone('door'))
 check('and the clock stays at 07:00', (await clock()) === '07:00')
@@ -684,6 +687,9 @@ const porchEnd = await read4()
 check('the porch ends at the edge of the home area (the street comes in Stage 5)', !!porchEnd && porchEnd.z < 1.6 && porchEnd.z > 0.6, fmt4(porchEnd))
 await p4.waitForTimeout(800)
 shots4.porch = await p4.screenshot({ path: `${OUT}/s4-5-porch.png` })
+} catch (e) {
+  check('the Stage 4 walk-through finished without an exception', false, String(e.message).split('\n')[0])
+}
 
 // ---- 7. a look into every room (spawned straight there with ?at=x,z,deg) ----
 const VIEWS = [
@@ -695,16 +701,19 @@ const VIEWS = [
   ['bathroom (estimated)', '?at=5.95,-7.9,90'],
 ]
 const viewShots = []
-for (const [name, query] of VIEWS) {
-  const at = await openHome(query)
-  const [qx, qz] = query.slice(4).split(',').map(Number)
-  check(`?at= puts her in the ${name}`, !!at && Math.abs(at.x - qx) < 0.3 && Math.abs(at.z - qz) < 0.3, fmt4(at))
-  await p4.waitForTimeout(2500)
-  viewShots.push(await p4.screenshot({ path: `${OUT}/s4-view-${viewShots.length + 1}.png` }))
+try {
+  for (const [name, query] of VIEWS) {
+    const at = await openHome(query)
+    const [qx, qz] = query.slice(4).split(',').map(Number)
+    check(`?at= puts her in the ${name}`, !!at && Math.abs(at.x - qx) < 0.3 && Math.abs(at.z - qz) < 0.3, fmt4(at))
+    await p4.waitForTimeout(2500)
+    viewShots.push(await p4.screenshot({ path: `${OUT}/s4-view-${viewShots.length + 1}.png` }))
+  }
+  check('the six room views all look different from each other', (await Promise.all(viewShots.slice(1).map((v, i) => diffShare(viewShots[i], v)))).every((x) => x > 0.04))
+} catch (e) {
+  check('the room views finished without an exception', false, String(e.message).split('\n')[0])
 }
-check('the six room views all look different from each other', (await Promise.all(viewShots.slice(1).map((v, i) => diffShare(viewShots[i], v)))).every((x) => x > 0.04))
-
-printJpeg('sheet4', (await contactSheet([shots4.bed, shots4.button, shots4.act, shots4.door, shots4.porch, ...viewShots], 2, 560)).toString('base64'))
+printJpeg('sheet4', (await contactSheet([shots4.door, shots4.porch, ...viewShots].filter(Boolean), 2, 560)).toString('base64'))
 
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
