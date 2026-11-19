@@ -10,6 +10,9 @@ export const input = {
   keyX: 0,
   keyY: 0,
   keyRun: false,
+  /** The two pedals while she drives (the on-screen buttons); the keyboard's up / down arrows work too. */
+  gas: false,
+  brake: false,
   /** Camera drag in CSS pixels since the last frame, and pinch / wheel zoom (positive = out). */
   lookDX: 0,
   lookDY: 0,
@@ -26,6 +29,8 @@ export function resetInput(): void {
   input.keyX = 0
   input.keyY = 0
   input.keyRun = false
+  input.gas = false
+  input.brake = false
   input.lookDX = 0
   input.lookDY = 0
   input.zoom = 0
@@ -46,4 +51,18 @@ export function takeLook(): { dx: number; dy: number; zoom: number } {
   input.lookDY = 0
   input.zoom = 0
   return out
+}
+
+/**
+ * What the driver is asking of the car: the left stick steers (only its sideways part, with a small dead
+ * zone and a gentle curve so small pushes are small turns), the pedals are the two buttons or up / down.
+ */
+export function readDrive(): { throttle: number; brake: number; steer: number } {
+  const x = Math.abs(input.stickX) > 0.08 ? input.stickX : 0
+  const steer = x !== 0 ? Math.sign(x) * Math.min(1, Math.abs(x) ** 1.25 * 1.1) : input.keyX
+  return {
+    throttle: input.gas || input.keyY > 0 ? 1 : 0,
+    brake: input.brake || input.keyY < 0 ? 1 : 0,
+    steer,
+  }
 }

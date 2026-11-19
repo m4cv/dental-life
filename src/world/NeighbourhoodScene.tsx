@@ -7,6 +7,8 @@ import { spawnFromQuery } from '@/home/spawn'
 import { useRoutineStore } from '@/state/useRoutineStore'
 import { buildStreet } from '@/street/buildStreet'
 import { STREET_COLLIDERS, WORLD_BOUNDS, insideHome } from '@/street/streetLayout'
+import { buildCar } from '@/vehicle/buildCar'
+import { carFromQuery, startsDriving } from '@/vehicle/carLayout'
 import { HomeLights, INTERACTION, useHomeAnimation } from './homeShared'
 import { PlayerRig, type RigConfig } from './PlayerRig'
 
@@ -21,6 +23,9 @@ const GRIDS = {
   moveOpen: buildGrid(WORLD, WORLD_BOUNDS, 12, 2),
   camShut: buildGrid([...WORLD, FRONT_DOOR_COLLIDER, ...CAMERA_ONLY_COLLIDERS], WORLD_BOUNDS, 12, 10.5),
   camOpen: buildGrid([...WORLD, ...CAMERA_ONLY_COLLIDERS], WORLD_BOUNDS, 12, 10.5),
+  // the car is wider and longer than a person: its collision circles reach about 2 m from its centre
+  carShut: buildGrid([...WORLD, FRONT_DOOR_COLLIDER], WORLD_BOUNDS, 12, 3.2),
+  carOpen: buildGrid(WORLD, WORLD_BOUNDS, 12, 3.2),
 }
 
 /** Indoors the sun is mostly overhead (soft shadows under the furniture); outdoors it is a low morning sun from the east. */
@@ -31,14 +36,18 @@ const SUN_OUTDOORS = { offset: [20, 16, 8], intensity: 2.3 } as const
  * Stage 5: the home, its walled yard and the neighbourhood around it as ONE world, so she walks out
  * of the front door and down the lane without a loading screen. The camera and the light switch
  * between indoors and outdoors by where she stands (see PlayerRig).
+ * Stage 6: a car is parked in the lane; she can get in and drive anywhere the streets allow.
  *
- * Add ?routine=done to skip the morning routine (the front door starts open), and ?at=x,z,deg to
- * start anywhere in the neighbourhood (for testing and for looking around).
+ * Add ?routine=done to skip the morning routine (the front door starts open), ?at=x,z,deg to
+ * start anywhere in the neighbourhood, ?car=x,z,deg to park the car somewhere else and ?drive=1 to
+ * start in the driver's seat (all for testing and for looking around).
  */
 export function NeighbourhoodScene() {
   const home = useMemo(() => buildHome(), [])
   const street = useMemo(() => buildStreet(), [])
   const spawn = useMemo(() => spawnFromQuery(window.location.search, WORLD_BOUNDS, HOME_SPAWN), [])
+  const car = useMemo(() => buildCar(), [])
+  const carStart = useMemo(() => carFromQuery(window.location.search, WORLD_BOUNDS), [])
 
   useEffect(() => {
     const store = useRoutineStore.getState()
@@ -47,8 +56,9 @@ export function NeighbourhoodScene() {
     return () => {
       home.dispose()
       street.dispose()
+      car.dispose()
     }
-  }, [home, street])
+  }, [home, street, car])
 
   const rig = useMemo<RigConfig>(
     () => ({
@@ -62,8 +72,14 @@ export function NeighbourhoodScene() {
       sun: { ...SUN_INDOORS, half: 12, far: 80 },
       sunAt: (x, z) => (insideHome(x, z) ? SUN_INDOORS : SUN_OUTDOORS),
       interaction: INTERACTION,
+      vehicle: {
+        start: carStart,
+        startsDriving: startsDriving(window.location.search),
+        colliders: (x, z) => queryGrid(useRoutineStore.getState().routine.doorOpen ? GRIDS.carOpen : GRIDS.carShut, x, z),
+        model: car,
+      },
     }),
-    [spawn],
+    [spawn, car, carStart],
   )
 
   useHomeAnimation(home)
@@ -77,6 +93,7 @@ export function NeighbourhoodScene() {
       <HomeLights />
       <primitive object={home.group} />
       <primitive object={street.group} />
+      <primitive object={car.group} />
       <PlayerRig config={rig} />
     </>
   )

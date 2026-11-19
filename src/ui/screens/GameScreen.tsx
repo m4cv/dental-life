@@ -3,6 +3,7 @@ import { TouchControls } from '@/controls/TouchControls'
 import { useAppStore } from '@/state/useAppStore'
 import { CharacterPreviewPanel } from '@/ui/components/CharacterPreviewPanel'
 import { Diagnostics } from '@/ui/components/Diagnostics'
+import { DriveHud } from '@/ui/components/DriveHud'
 import { RotatePrompt } from '@/ui/components/RotatePrompt'
 import { RoutineHud } from '@/ui/components/RoutineHud'
 import { CharacterShowcase } from '@/world/CharacterShowcase'
@@ -20,7 +21,8 @@ const PREVIEW_MODE = QUERY.has('preview')
  * The neighbourhood (home, yard, lanes, Ninety Street) is the default scene since Stage 5.
  * ?scene=home opens the home alone (the Stage 4 tests run there) and ?scene=courtyard the Stage 3
  * test set (the movement and camera tests run there). ?at=x,z,deg starts at that spot and
- * ?routine=done skips the morning routine (both for testing).
+ * ?routine=done skips the morning routine (both for testing). In the neighbourhood the car is parked
+ * in the home lane; ?car=x,z,deg parks it elsewhere and ?drive=1 starts in the driver's seat.
  */
 const SCENE = QUERY.get('scene')
 const COURTYARD_MODE = SCENE === 'courtyard'
@@ -49,6 +51,8 @@ export default function GameScreen() {
       </div>
 
       {!PREVIEW_MODE && !COURTYARD_MODE && <RoutineHud showPlace={!HOME_ONLY_MODE} />}
+
+      {!PREVIEW_MODE && <DriveHud />}
 
       {!PREVIEW_MODE && <RotatePrompt />}
 

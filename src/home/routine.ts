@@ -76,7 +76,8 @@ export function formatClock(minutes: number): string {
 // ---------------------------------------------------------------------------------------------
 
 export interface Prompt {
-  id: Spot['id']
+  /** The spot it belongs to, or `car` for the Get in / Get out button. */
+  id: Spot['id'] | 'car'
   label: string
   /** False = shown greyed out with `note` (the front door before the routine is finished). */
   enabled: boolean

@@ -14,6 +14,11 @@ export interface ControlLayout {
   runSize: number
   /** Recentre button diameter. */
   recenterSize: number
+  /** Gas and brake pedals while driving (width × height, CSS px). */
+  gasW: number
+  gasH: number
+  brakeW: number
+  brakeH: number
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -28,6 +33,10 @@ export function controlLayout(width: number, height: number): ControlLayout {
     stickRadius: Math.round(base * 0.42),
     runSize,
     recenterSize: clamp(Math.round(runSize * 0.78), 48, 56),
+    gasW: clamp(Math.round(short * 0.22), 72, 96),
+    gasH: clamp(Math.round(short * 0.3), 96, 128),
+    brakeW: clamp(Math.round(short * 0.22), 72, 96),
+    brakeH: clamp(Math.round(short * 0.21), 68, 92),
   }
 }
 

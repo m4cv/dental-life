@@ -855,6 +855,218 @@ try {
 }
 printJpeg('sheet5', (await contactSheet(viewShots5.filter(Boolean), 2, 560)).toString('base64'))
 
+// ================= Stage 6: the car =================
+// Two fingers like a real player: the left thumb steers on the stick (id 1), the right thumb holds Gas or Brake (id 2).
+const shots6 = []
+const speedo = () => p4.getByTestId('speedometer')
+const fingers6 = new Map()
+const cur6 = { pedal: null, stick: false }
+const touchAll6 = (type) => touch4(type, [...fingers6].map(([id, [x, y]]) => [x, y, id]))
+const releaseAll6 = async () => {
+  if (fingers6.size) await touch4('touchEnd', [])
+  fingers6.clear()
+  cur6.pedal = null
+  cur6.stick = false
+}
+const pedalCentre = async (id) => {
+  const b = await p4.getByTestId(id).boundingBox()
+  return [b.x + b.width / 2, b.y + b.height / 2]
+}
+/** pedal: 'gas' | 'brake' | null; stick: [sx, sy] (-1..1) | null. Changing which fingers are down lifts both and presses again. */
+const setDrive = async ({ pedal = null, stick = null } = {}) => {
+  if (cur6.pedal !== pedal || cur6.stick !== !!stick) {
+    await releaseAll6()
+    if (stick) {
+      fingers6.set(1, [STICK.x, STICK.y])
+      await touchAll6('touchStart')
+      cur6.stick = true
+    }
+    if (pedal) {
+      fingers6.set(2, await pedalCentre(pedal === 'gas' ? 'btn-gas' : 'btn-brake'))
+      await touchAll6('touchStart')
+      cur6.pedal = pedal
+    }
+  }
+  if (stick) {
+    fingers6.set(1, [STICK.x + stick[0] * STICK.r, STICK.y - stick[1] * STICK.r])
+    await touchAll6('touchMove')
+  }
+}
+const until6 = async (pred, ms, every = 150) => {
+  const t0 = Date.now()
+  let last = null
+  while (Date.now() - t0 < ms) {
+    last = await read4()
+    if (last && pred(last)) return { hit: true, d: last }
+    await p4.waitForTimeout(every)
+  }
+  return { hit: false, d: last }
+}
+/** Brakes to a halt and lets go the moment the car has stopped (the brake would back it up), then waits until it is still. */
+const stopCar = async (ms = 60000) => {
+  await setDrive({ pedal: 'brake' })
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    const d = await read4()
+    const g = await speedo().getAttribute('data-gear').catch(() => 'D')
+    if (d && (d.speed < 0.4 || g === 'R')) break
+    await p4.waitForTimeout(100)
+  }
+  await releaseAll6()
+  return (await until6((d) => d.speed < 0.3, 25000)).d
+}
+const waitLabel = async (want, ms = 10000) => {
+  const t0 = Date.now()
+  let got = null
+  while (Date.now() - t0 < ms) {
+    got = await p4.getByTestId('btn-interact').innerText().then((t) => t.trim()).catch(() => null)
+    if (got === want) return true
+    await p4.waitForTimeout(200)
+  }
+  console.log(`info  button said "${got}", wanted "${want}"`)
+  return false
+}
+const kmh = async () => Number((await speedo().getAttribute('data-kmh').catch(() => '0')) ?? 0)
+
+try {
+  // next to the parked car in the home lane
+  const near6 = await openHome('?routine=done&at=9,7.4,0', '')
+  check('she starts in the home lane beside the parked car', !!near6 && Math.abs(near6.x - 9) < 0.3 && Math.abs(near6.z - 7.4) < 0.3, fmt4(near6))
+  check('the button beside the car says "Get in car"', (await waitLabel('Get in car')) && (await btn().getAttribute('data-spot')) === 'car')
+  check('on foot there are no pedals and no speedometer, and Run is there', (await p4.getByTestId('btn-gas').count()) === 0 && (await speedo().count()) === 0 && (await p4.getByTestId('btn-run').count()) === 1)
+  await p4.waitForTimeout(2500)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-1-parked.png` }))
+
+  // walking into the parked car: it is solid
+  await pushToward(9, 20, 3500, { settle: true })
+  const bumped = await read4()
+  check('the parked car is solid (she cannot walk through it)', !!bumped && bumped.z < 8.7, fmt4(bumped))
+  await route([[9, 7.9, { tol: 0.3 }]])
+
+  // get in
+  await waitLabel('Get in car')
+  await btn().tap()
+  await speedo().waitFor({ timeout: 10000 }).catch(() => {})
+  check('tapping it puts her in the car: the speedometer and both pedals appear and Run is gone', (await speedo().count()) === 1 && (await p4.getByTestId('btn-gas').count()) === 1 && (await p4.getByTestId('btn-brake').count()) === 1 && (await p4.getByTestId('btn-run').count()) === 0)
+  check('the speedometer starts at 0 km/h in gear D', (await speedo().getAttribute('data-kmh')) === '0' && (await speedo().getAttribute('data-gear')) === 'D')
+  check('the button now says "Get out"', await waitLabel('Get out'))
+  const gasBox = await p4.getByTestId('btn-gas').boundingBox()
+  const brakeBox = await p4.getByTestId('btn-brake').boundingBox()
+  const speedBox = await speedo().boundingBox()
+  const joy6 = await p4.getByTestId('joystick').boundingBox()
+  const inter6 = await btn().boundingBox()
+  check('the pedals fit on the screen and do not overlap each other, the stick, the speedometer or the Get out button', inside4(gasBox) && inside4(brakeBox) && !overlap(gasBox, brakeBox) && !overlap(gasBox, joy6) && !overlap(brakeBox, joy6) && !overlap(gasBox, speedBox) && !overlap(brakeBox, speedBox) && !!inter6 && !overlap(inter6, gasBox) && !overlap(inter6, brakeBox), JSON.stringify({ gasBox, brakeBox, speedBox }))
+  check('both pedals are big enough for a thumb (at least 56 px)', gasBox.width >= 56 && gasBox.height >= 56 && brakeBox.width >= 56 && brakeBox.height >= 56)
+  await p4.waitForTimeout(2000)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-2-in-car.png` }))
+
+  // Gas: the car rolls east along the lane
+  const before6 = await read4()
+  await setDrive({ pedal: 'gas' })
+  const rolling = await until6((d) => d.speed > 3 && d.x > before6.x + 3, 90000)
+  check('holding Gas drives the car east along the lane (speed rises, x grows)', rolling.hit, fmt4(rolling.d) + ` · ${rolling.d?.speed} m/s`)
+  check('the speedometer shows the speed in km/h', (await kmh()) > 5, String(await kmh()))
+  check('while the car is moving, Get out is disabled and says to stop first', (await btn().isDisabled()) && ((await p4.getByTestId('interact-note').innerText().catch(() => '')) || '').includes('Stop the car'))
+  await stopCar()
+
+  // steering: the stick turns the car (left = north)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-3-stopped.png` }))
+  const lane6 = await read4()
+  await setDrive({ pedal: 'gas', stick: [-0.9, 0] })
+  const north6 = await until6((d) => d.z < lane6.z - 1.5, 60000)
+  check('pushing the stick left turns the car to the left (north) while it drives', north6.hit, `${fmt4(lane6)} → ${fmt4(north6.d)}`)
+  await stopCar()
+
+  // steering right until the south wall of the lane: the car can never be inside it, however hard she presses
+  await setDrive({ pedal: 'gas', stick: [0.9, 0] })
+  let maxZ = -Infinity
+  let contactAt = null
+  const tWall = Date.now()
+  while (Date.now() - tWall < 60000) {
+    const d = await read4()
+    if (d) {
+      if (d.x < 60) maxZ = Math.max(maxZ, d.z)
+      if (d.z > 9.2 && contactAt === null) contactAt = Date.now()
+      if (d.x > 56 || (contactAt !== null && Date.now() - contactAt > 3500)) break
+    }
+    await p4.waitForTimeout(150)
+  }
+  check('steering right she reaches the wall on the south side of the lane', contactAt !== null, `max z ${maxZ.toFixed(2)}`)
+  check('the wall stops her: the car stays inside the lane (z below 10.2) however hard she presses', maxZ < 10.2, `max z ${maxZ.toFixed(2)}`)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-4-wall.png` }))
+
+  // Brake: slows the car and, once stopped, reverses (gear R)
+  await setDrive({ pedal: 'brake' })
+  let revSpeed = 0
+  const tRev = Date.now()
+  while (Date.now() - tRev < 60000) {
+    const g = await speedo().getAttribute('data-gear')
+    const d = await read4()
+    if (g === 'R' && d && d.speed > 0.6) {
+      revSpeed = d.speed
+      break
+    }
+    await p4.waitForTimeout(150)
+  }
+  check('Brake stops the car and then backs it up (the speedometer shows gear R)', revSpeed > 0.6, `${revSpeed} m/s in reverse`)
+
+  // stop and get out
+  await releaseAll6()
+  const still = await until6((d) => d.speed < 0.3, 60000)
+  check('letting go of everything lets the car roll to a stop', still.hit, `${still.d?.speed} m/s`)
+  check('the button says "Get out" and is enabled once the car has stopped', (await waitLabel('Get out')) && !(await btn().isDisabled()))
+  const stopped6 = await read4()
+  await btn().tap()
+  await p4.waitForFunction(() => !document.querySelector('[data-testid="speedometer"]'), null, { timeout: 15000 }).catch(() => {})
+  check('Get out puts her back on foot: the pedals and the speedometer are gone and Run is back', (await speedo().count()) === 0 && (await p4.getByTestId('btn-gas').count()) === 0 && (await p4.getByTestId('btn-run').count()) === 1)
+  const out6 = await read4()
+  check('she is standing next to the car, not inside it', !!out6 && !!stopped6 && Math.hypot(out6.x - stopped6.x, out6.z - stopped6.z) > 0.6 && Math.hypot(out6.x - stopped6.x, out6.z - stopped6.z) < 3.5, `${fmt4(stopped6)} → ${fmt4(out6)}`)
+  check('and the button offers "Get in car" again', await waitLabel('Get in car'))
+  await p4.waitForTimeout(1500)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-5-out.png` }))
+} catch (e) {
+  check('the Stage 6 first drive finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+
+// ?drive=1: start in the driver's seat, straight east across Ninety Street to the shops
+try {
+  const d0 = await openHome('?routine=done&drive=1&car=50,7.6,90', '')
+  check('?drive=1 starts her in the driver\'s seat (speedometer and pedals are there)', !!d0 && (await speedo().count()) === 1 && (await p4.getByTestId('btn-gas').count()) === 1, fmt4(d0))
+  check('?car= puts the car at x 50 in the lane', !!d0 && Math.abs(d0.x - 50) < 1, fmt4(d0))
+  await setDrive({ pedal: 'gas' })
+  const crossing = await until6((d) => d.x > 70, 120000)
+  check('she drives east along the lane and onto Ninety Street', crossing.hit, fmt4(crossing.d))
+  await p4.waitForTimeout(500)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-6-ninety-street.png` }))
+  const shops = await until6((d) => d.x > 91.5 && d.speed < 0.3, 120000)
+  check('she crosses the boulevard and the shops on the east side stop the car (x about 92)', shops.hit && shops.d.x < 93.6, fmt4(shops.d))
+  await releaseAll6()
+} catch (e) {
+  check('the Stage 6 east drive finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+
+// north along Ninety Street to the road-works barrier
+try {
+  const n0 = await openHome('?routine=done&drive=1&car=72.25,25,180', '')
+  check('the car can start on the carriageway heading north', !!n0 && Math.abs(n0.x - 72.25) < 1 && Math.abs(n0.z - 25) < 1, fmt4(n0))
+  await setDrive({ pedal: 'gas' })
+  const fast = await until6((d) => d.speed > 8, 90000)
+  check('on the open road the car reaches a good speed', fast.hit, `${fast.d?.speed} m/s`)
+  check('the speedometer reads well above walking speed', (await kmh()) > 25, String(await kmh()))
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-7-fast.png` }))
+  const barrier6 = await until6((d) => d.z < -26.5 && d.speed < 0.3, 120000)
+  check('the road-works barrier stops the car at the north end (z about -28)', barrier6.hit && barrier6.d.z > -30, fmt4(barrier6.d))
+  await releaseAll6()
+  await p4.waitForTimeout(1200)
+  shots6.push(await p4.screenshot({ path: `${OUT}/s6-8-barrier.png` }))
+} catch (e) {
+  check('the Stage 6 north drive finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+printJpeg('sheet6', (await contactSheet(shots6.filter(Boolean), 2, 560)).toString('base64'))
+
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 
 await browser.close()

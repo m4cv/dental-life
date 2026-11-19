@@ -10,11 +10,11 @@ export interface Spawn {
 }
 
 /**
- * Reads `?at=` from a query string; returns the normal spawn when it is missing or out of range.
+ * Reads `?at=` (or another key, such as `?car=`) from a query string; returns the normal spawn when it is missing or out of range.
  * The home alone (Stage 4) and the whole neighbourhood (Stage 5) have different bounds.
  */
-export function spawnFromQuery(search: string, bounds: Bounds = HOME_BOUNDS, fallback: Spawn = HOME_SPAWN): Spawn {
-  const raw = new URLSearchParams(search).get('at')
+export function spawnFromQuery(search: string, bounds: Bounds = HOME_BOUNDS, fallback: Spawn = HOME_SPAWN, key = 'at'): Spawn {
+  const raw = new URLSearchParams(search).get(key)
   if (!raw) return fallback
   const parts = raw.split(',').map((s) => Number(s.trim()))
   if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) return fallback

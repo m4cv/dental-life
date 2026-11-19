@@ -1,9 +1,59 @@
 import { useEffect, useRef, useState } from 'react'
 import { useControlStore } from '@/state/useControlStore'
+import { useDriveStore } from '@/state/useDriveStore'
 import { usePromptStore } from '@/state/usePromptStore'
 import { useViewport } from '@/ui/useViewport'
 import { input, resetInput } from './input'
 import { controlLayout } from './layout'
+
+/** A pedal: held down while the finger is on it (and until the finger lifts, even if it slides off). */
+function Pedal({
+  testid,
+  label,
+  pedal,
+  w,
+  h,
+  right,
+  bottom,
+  tone,
+}: {
+  testid: string
+  label: string
+  pedal: 'gas' | 'brake'
+  w: number
+  h: number
+  right: string
+  bottom: string
+  tone: string
+}) {
+  const [down, setDown] = useState(false)
+  const set = (v: boolean) => {
+    input[pedal] = v
+    setDown(v)
+  }
+  return (
+    <button
+      type="button"
+      data-touch-button
+      data-testid={testid}
+      aria-pressed={down}
+      aria-label={label}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        set(true)
+      }}
+      onPointerUp={() => set(false)}
+      onPointerCancel={() => set(false)}
+      onLostPointerCapture={() => set(false)}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ width: w, height: h, right, bottom }}
+      className={'pointer-events-auto absolute grid select-none place-items-center rounded-3xl border-2 text-base font-extrabold ' + (down ? 'border-white bg-white text-slate-900' : tone)}
+    >
+      {label}
+    </button>
+  )
+}
 
 /**
  * On-screen controls, drawn over the 3D canvas:
@@ -11,6 +61,8 @@ import { controlLayout } from './layout'
  *  - right half: drag to look around, two fingers to pinch-zoom
  *  - buttons: Run (toggle) and Recenter camera
  * Interact: a button that appears next to Run when something can be done where she stands.
+ * In the car (Stage 6) the left stick steers (only its sideways part), Run gives way to two pedals
+ * (Gas, Brake — which reverses once the car has stopped), and Interact becomes Get out.
  * Desktop: WASD / arrows move, Shift runs, mouse drag looks, wheel zooms, C recenters, E interacts.
  * Everything writes into the shared `input` object; nothing here re-renders while you play.
  */
@@ -23,6 +75,7 @@ export function TouchControls() {
   const toggleRun = useControlStore((s) => s.toggleRun)
   const prompt = usePromptStore((s) => s.prompt)
   const busy = usePromptStore((s) => s.busy)
+  const driving = useDriveStore((s) => s.driving)
   const [hint, setHint] = useState(true)
   // Sizes follow the screen (see layout.ts): the game is meant to be played in landscape.
   const { w, h } = useViewport()
@@ -202,6 +255,14 @@ export function TouchControls() {
     }
   }, [])
 
+  // A hint for the pedals each time she gets in.
+  useEffect(() => {
+    if (!driving) return
+    setHint(true)
+    const t = window.setTimeout(() => setHint(false), 6000)
+    return () => window.clearTimeout(t)
+  }, [driving])
+
   // Re-seat the resting joystick whenever the screen size (and so the control sizes) change.
   useEffect(() => {
     layoutRef.current = L
@@ -248,7 +309,7 @@ export function TouchControls() {
           className="pointer-events-none absolute inset-x-0 mx-auto w-fit max-w-[60%] rounded-full bg-black/45 px-3 py-1.5 text-center text-xs text-white"
           style={{ bottom: `calc(${floor} + 0.25rem)` }}
         >
-          Left thumb: move · Right thumb: look · Pinch: zoom
+          {driving ? 'Left thumb: steer · Right thumb: Gas and Brake (Brake reverses) · Drag: look' : 'Left thumb: move · Right thumb: look · Pinch: zoom'}
         </p>
       )}
 
@@ -256,7 +317,10 @@ export function TouchControls() {
       {prompt && !busy && (
         <div
           className="pointer-events-none absolute flex flex-col items-end gap-1"
-          style={{ right: `calc(${edgeR} + 0.5rem + ${L.runSize}px + 1rem)`, bottom: `calc(${floor} + 0.5rem)` }}
+          style={{
+            right: driving ? `calc(${edgeR} + 0.5rem + ${L.gasW + L.brakeW}px + 1.75rem)` : `calc(${edgeR} + 0.5rem + ${L.runSize}px + 1rem)`,
+            bottom: `calc(${floor} + 0.5rem)`,
+          }}
         >
           {prompt.note && (
             <p data-testid="interact-note" className="max-w-[22rem] rounded-xl bg-black/60 px-3 py-1.5 text-right text-xs text-white">
@@ -284,38 +348,84 @@ export function TouchControls() {
       )}
 
       {/* right thumb's corner: Run (toggle) with Recentre above it; both stay out of the look drag */}
-      <div
-        className="pointer-events-none absolute flex flex-col items-center gap-3"
-        style={{ right: `calc(${edgeR} + 0.5rem)`, bottom: `calc(${floor} + 0.5rem)` }}
-      >
-        <button
-          type="button"
-          data-touch-button
-          data-testid="btn-recenter"
-          aria-label="Recenter camera behind the character"
-          onClick={() => {
-            input.recenter = true
-          }}
-          style={{ width: L.recenterSize, height: L.recenterSize }}
-          className="pointer-events-auto grid place-items-center rounded-full border border-white/50 bg-black/45 text-xl text-white active:bg-white/40"
+      {!driving && (
+        <div
+          className="pointer-events-none absolute flex flex-col items-center gap-3"
+          style={{ right: `calc(${edgeR} + 0.5rem)`, bottom: `calc(${floor} + 0.5rem)` }}
         >
-          ⟲
-        </button>
-        <button
-          type="button"
-          data-touch-button
-          data-testid="btn-run"
-          aria-pressed={run}
-          onClick={toggleRun}
-          style={{ width: L.runSize, height: L.runSize }}
-          className={
-            'pointer-events-auto grid place-items-center rounded-full border text-sm font-bold ' +
-            (run ? 'border-white bg-white text-slate-900' : 'border-white/50 bg-black/45 text-white active:bg-white/40')
-          }
-        >
-          Run
-        </button>
-      </div>
+          <button
+            type="button"
+            data-touch-button
+            data-testid="btn-recenter"
+            aria-label="Recenter camera behind the character"
+            onClick={() => {
+              input.recenter = true
+            }}
+            style={{ width: L.recenterSize, height: L.recenterSize }}
+            className="pointer-events-auto grid place-items-center rounded-full border border-white/50 bg-black/45 text-xl text-white active:bg-white/40"
+          >
+            ⟲
+          </button>
+          <button
+            type="button"
+            data-touch-button
+            data-testid="btn-run"
+            aria-pressed={run}
+            onClick={toggleRun}
+            style={{ width: L.runSize, height: L.runSize }}
+            className={
+              'pointer-events-auto grid place-items-center rounded-full border text-sm font-bold ' +
+              (run ? 'border-white bg-white text-slate-900' : 'border-white/50 bg-black/45 text-white active:bg-white/40')
+            }
+          >
+            Run
+          </button>
+        </div>
+      )}
+
+      {/* in the car: Recentre above the pedals, Brake and Gas under the right thumb */}
+      {driving && (
+        <>
+          <div
+            className="pointer-events-none absolute"
+            style={{ right: `calc(${edgeR} + 0.5rem + ${(L.gasW - L.recenterSize) / 2}px)`, bottom: `calc(${floor} + 0.5rem + ${L.gasH}px + 0.75rem)` }}
+          >
+            <button
+              type="button"
+              data-touch-button
+              data-testid="btn-recenter"
+              aria-label="Recenter camera behind the car"
+              onClick={() => {
+                input.recenter = true
+              }}
+              style={{ width: L.recenterSize, height: L.recenterSize }}
+              className="pointer-events-auto grid place-items-center rounded-full border border-white/50 bg-black/45 text-xl text-white active:bg-white/40"
+            >
+              ⟲
+            </button>
+          </div>
+          <Pedal
+            testid="btn-brake"
+            label="Brake"
+            pedal="brake"
+            w={L.brakeW}
+            h={L.brakeH}
+            right={`calc(${edgeR} + 0.5rem + ${L.gasW}px + 0.75rem)`}
+            bottom={`calc(${floor} + 0.5rem)`}
+            tone="border-red-200/70 bg-red-700/70 text-white"
+          />
+          <Pedal
+            testid="btn-gas"
+            label="Gas"
+            pedal="gas"
+            w={L.gasW}
+            h={L.gasH}
+            right={`calc(${edgeR} + 0.5rem)`}
+            bottom={`calc(${floor} + 0.5rem)`}
+            tone="border-emerald-200/70 bg-emerald-700/70 text-white"
+          />
+        </>
+      )}
     </div>
   )
 }
