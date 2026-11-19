@@ -104,7 +104,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
   const sunNow = useRef({ offset: [...sunCfg.offset] as [number, number, number], intensity: sunCfg.intensity })
   const recenterTo = useRef<number | null>(null)
   const readoutClock = useRef(0)
-  /** Where the body was last frame and how far it has gone since the last report (a jump of 4 m or more is a teleport, not travel). */
+  /** Where the body was last frame and how far it has gone since the last report (a jump of 12 m or more cannot be a frame of driving, so it is not counted). */
   const lastBody = useRef<[number, number] | null>(null)
   const travelled = useRef(0)
   const action = useRef<Action | null>(null)
@@ -330,7 +330,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     const was = lastBody.current
     if (was) {
       const d = Math.hypot(fx - was[0], fz - was[1])
-      if (d < 4) travelled.current += d
+      // a slow machine can move the car 6 m in one frame; there is no teleport here (the first frame and getting in or out reset lastBody)
+      if (d < 12) travelled.current += d
     }
     lastBody.current = [fx, fz]
     const pivot: [number, number, number] = [fx, groundY + (isDriving ? DRIVE_CAM.pivotY : CAM.pivotY), fz]
