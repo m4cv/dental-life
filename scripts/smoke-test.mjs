@@ -67,6 +67,13 @@ const shotA = await page.screenshot({ path: `${OUT}/2-game-a.png` })
 await page.waitForTimeout(2000)
 const shotB = await page.screenshot({ path: `${OUT}/3-game-b.png` })
 
+// Also print a compressed JPEG into the log (base64) so the render can be inspected from the
+// run log alone, without downloading the artifact.
+const jpg = (await page.screenshot({ type: 'jpeg', quality: 70 })).toString('base64')
+console.log('JPEG_B64_START')
+for (let i = 0; i < jpg.length; i += 3000) console.log(`B64 ${jpg.slice(i, i + 3000)}`)
+console.log('JPEG_B64_END')
+
 const gl = await page.evaluate(() => {
   const canvas = document.querySelector('canvas')
   const ctx = canvas.getContext('webgl2')
