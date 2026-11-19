@@ -1,8 +1,9 @@
 name: CI (branches)
 
 # Runs on every branch except main (main has its own build-and-deploy workflow).
-# Same checks as the deploy workflow, but nothing is published, and the render smoke test is
-# allowed to fail the run. Used to verify work before it reaches the live link.
+# Same quick checks as the deploy workflow (unit tests, type-check, build), but nothing is published.
+# The long browser walk-through is no longer part of it (it took about 25 minutes): run it on demand
+# with the "Browser test (manual)" workflow.
 on:
   push:
     branches-ignore: [main]
@@ -24,13 +25,3 @@ jobs:
         run: npm test
       - name: Type-check and build
         run: npm run build
-      - name: Render smoke test (real WebGL)
-        run: |
-          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
-          node scripts/smoke-test.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: smoke-screenshots
-          path: smoke-output/
-          if-no-files-found: ignore
