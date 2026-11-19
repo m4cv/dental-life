@@ -2,7 +2,7 @@
 import {
   HEAD, COAT_RINGS, COAT_SPLIT_Y, coatMesh, coatImplicit, coatFrontZ, hijabShellMesh, hijabDrapeMesh,
   drapeRing, drapeHem, decalMesh, rectPoly, LAPEL_POLY, V_NECK_POLY, mirrorPoly, strapPath, ribbonMesh, coatNormal,
-  skinZ, shellZ,
+  skinZ, shellZ, EYE, FACE_PATCH, eyePoint, lashLine, irisCapMesh, taperTubeMesh, facePatchMesh,
 } from '../src/character/charShapes.ts'
 
 let failures = 0
@@ -137,6 +137,67 @@ check('hijab drape faces outward', outwardShare(drape, (g) => { const r = drapeR
 
 // --- face -------------------------------------------------------------------------------------
 check('skin sits inside the shell at the rim', skinZ(0.04, 0.05) < shellZ(0.04, 0.05))
+{
+  const w = HEAD.window
+  // eyes sit fully inside the face window, clear of the rim tube (radius 6.2 mm)
+  const inside = (x, y) => (x / w.ax) ** 2 + ((y - w.cy) / w.ay) ** 2
+  let worst = 0
+  for (const u of [-EYE.a, EYE.a]) {
+    for (const side of [1, -1]) {
+      const [x, y] = eyePoint(u * 0.97, 0, side)
+      worst = Math.max(worst, inside(x, y))
+    }
+  }
+  check('eye corners clear the hijab rim', worst < 0.74, `corner at ${(Math.sqrt(worst) * 100).toFixed(0)} % of the window radius`)
+  const lash = lashLine()
+  const maxIn = Math.max(...lash.map(([x, y]) => inside(x, y)))
+  check('eyeliner stays inside the window', maxIn < 0.85, `${(Math.sqrt(maxIn) * 100).toFixed(0)} %`)
+  const [ix] = eyePoint(-EYE.a, 0, 1)
+  check('eyes are apart by about one eye width', 2 * ix > 0.7 * 2 * EYE.a && 2 * ix < 1.3 * 2 * EYE.a, `gap ${(2 * ix * 1000).toFixed(0)} mm, eye ${(2 * EYE.a * 1000).toFixed(0)} mm`)
+  check('outer eye corner is higher than the inner one', eyePoint(EYE.a, 0, 1)[1] > eyePoint(-EYE.a, 0, 1)[1])
+}
+{
+  const cap = irisCapMesh()
+  check('iris cap is well-formed', finite(cap) && cap.uvs.length / 2 === cap.positions.length / 3)
+  let zOK = true, worstGap = 0
+  for (let i = 0; i < cap.positions.length; i += 3) {
+    const [x, y, z] = cap.positions.slice(i, i + 3)
+    const surface = EYE.c * Math.sqrt(Math.max(1 - (x / EYE.a) ** 2 - (y / EYE.b) ** 2, 0))
+    const gap = z - surface
+    worstGap = Math.max(worstGap, gap)
+    if (gap <= 0 || gap > 0.0004) zOK = false
+  }
+  check('iris cap sits 0–0.4 mm above the eyeball', zOK, `max ${(worstGap * 1000).toFixed(2)} mm`)
+  let uvOK = true
+  for (let i = 0; i < cap.uvs.length; i += 2) if (Math.hypot(cap.uvs[i] - 0.5, cap.uvs[i + 1] - 0.5) > 0.5001) uvOK = false
+  check('iris uvs stay inside the disc', uvOK)
+  check('iris fits inside the visible eye opening', EYE.irisR < EYE.b * Math.sqrt(1 - (0.002 / EYE.c) ** 2) * 0.95)
+}
+{
+  const pts = lashLine().map(([x, y]) => [x, y, 0.1])
+  const tube = taperTubeMesh(pts, (t) => 0.001 + 0.002 * Math.sin(Math.PI * t), 28, 6)
+  check('eyeliner tube is well-formed', finite(tube) && tube.normals.length === tube.positions.length)
+  let unit = true
+  for (let i = 0; i < tube.normals.length; i += 3) if (Math.abs(Math.hypot(tube.normals[i], tube.normals[i + 1], tube.normals[i + 2]) - 1) > 1e-6) unit = false
+  check('eyeliner normals are unit length', unit)
+}
+{
+  const patch = facePatchMesh()
+  check('face patch is well-formed', finite(patch) && patch.uvs.length / 2 === patch.positions.length / 3)
+  let minGap = Infinity, maxGap = -Infinity, inWin = true
+  const { rx, ry, rz } = HEAD.skin
+  for (let i = 0; i < patch.positions.length; i += 3) {
+    const [x, y, z] = patch.positions.slice(i, i + 3)
+    const e = Math.sqrt((x / rx) ** 2 + (y / ry) ** 2 + (z / rz) ** 2)
+    // distance above the skin ellipsoid, approximated along the radial direction
+    const gap = (e - 1) * Math.min(rx, ry, rz)
+    minGap = Math.min(minGap, gap); maxGap = Math.max(maxGap, gap)
+  }
+  check('face patch floats 0.5–2.5 mm above the skin', minGap > 0.0004 && maxGap < 0.0025, `${(minGap * 1000).toFixed(2)}–${(maxGap * 1000).toFixed(2)} mm`)
+  check('face patch uv covers the whole sheet', patch.uvs[0] === 0 && patch.uvs[patch.uvs.length - 1] === 1)
+  check('face patch faces the camera', outwardShare(patch, () => [0, 0, 0]) > 0.97)
+  check('face patch spans the face window', FACE_PATCH.xMax >= HEAD.window.ax && FACE_PATCH.yMax > HEAD.window.cy)
+}
 
 if (failures) {
   console.error(`\n${failures} check(s) failed`)

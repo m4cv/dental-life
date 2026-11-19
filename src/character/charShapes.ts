@@ -39,7 +39,7 @@ export const HEAD = {
   /** Hijab shell half-axes (the shell sits ~1 cm outside the skin: fabric + hair volume). */
   shell: { rx: 0.098, ry: 0.118, rz: 0.11 },
   /** The oval of face left open by the hijab, in head-centre coordinates. */
-  window: { cy: -0.02, ax: 0.06, ay: 0.088 },
+  window: { cy: -0.02, ax: 0.066, ay: 0.088 },
 } as const
 
 /** Forward (+z) distance of the skin surface at (x, y) in head-centre coordinates. */
@@ -553,4 +553,210 @@ export function strapPath(offset = 0.012): Vec3[] {
     const k = Math.sqrt(1.04 / v)
     return [p[0] * k, p[1], r.cz + (p[2] - r.cz) * k] as Vec3
   })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Face (Stage 2 polish): eyes, lashes and the painted-detail patch
+// ---------------------------------------------------------------------------------------------
+
+/** Eye placement and size, head-centre coordinates. The left eye is at +x; the right is mirrored. */
+export const EYE = {
+  x: 0.0315,
+  y: 0.012,
+  /** Half-axes of the eyeball (sclera) ellipsoid. */
+  a: 0.018,
+  b: 0.0115,
+  c: 0.0048,
+  /** The outer corner sits a little higher than the inner one. */
+  tilt: 0.1,
+  /** Radius of the iris, measured across the face. */
+  irisR: 0.0084,
+} as const
+
+/** A point in the eye's own frame (u outward along the eye, v up, metres) -> head-centre (x, y). */
+export function eyePoint(u: number, v: number, side: 1 | -1 = 1): [number, number] {
+  const c = Math.cos(EYE.tilt)
+  const s = Math.sin(EYE.tilt)
+  return [side * (EYE.x + u * c - v * s), EYE.y + u * s + v * c]
+}
+
+/** Upper lash line (eyeliner) of the left eye, inner corner to a small outer flick, in head-centre (x, y). */
+export function lashLine(): [number, number][] {
+  const a = 0.0172
+  const b = 0.0106
+  const pts: [number, number][] = []
+  const n = 8
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const u = -a + 2 * a * t
+    const v = b * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.75)
+    pts.push(eyePoint(u, v))
+  }
+  pts.push(eyePoint(a + 0.0035, 0.0036))
+  return pts
+}
+
+/**
+ * Curved cap that follows the front of the eyeball ellipsoid, with planar UVs (a disc
+ * texture maps straight onto it). Local to the eye centre, +z forward.
+ */
+export function irisCapMesh(rings = 6, segs = 24): MeshData {
+  const { a, b, c, irisR } = EYE
+  const positions: number[] = []
+  const normals: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+  for (let r = 0; r <= rings; r++) {
+    const rho = r / rings
+    for (let k = 0; k < segs; k++) {
+      const psi = (k / segs) * TAU
+      const X = irisR * rho * Math.cos(psi)
+      const Y = irisR * rho * Math.sin(psi)
+      const Z = c * Math.sqrt(Math.max(1 - (X / a) ** 2 - (Y / b) ** 2, 0)) * 1.012 + 0.0002
+      let nx = X / (a * a)
+      let ny = Y / (b * b)
+      let nz = Z / (c * c)
+      const nl = Math.hypot(nx, ny, nz)
+      nx /= nl
+      ny /= nl
+      nz /= nl
+      positions.push(X, Y, Z)
+      normals.push(nx, ny, nz)
+      uvs.push(0.5 + 0.5 * rho * Math.cos(psi), 0.5 + 0.5 * rho * Math.sin(psi))
+    }
+  }
+  for (let r = 0; r < rings; r++) {
+    for (let k = 0; k < segs; k++) {
+      const k1 = (k + 1) % segs
+      const a0 = r * segs + k
+      const a1 = r * segs + k1
+      const b0 = (r + 1) * segs + k
+      const b1 = (r + 1) * segs + k1
+      indices.push(a0, a1, b1, a0, b1, b0)
+    }
+  }
+  return { positions, indices, uvs, normals }
+}
+
+/**
+ * Round tube along a smooth curve whose radius changes along its length (thin ends, fuller
+ * middle): used for the eyeliner. Open ends; the radius is small enough there not to need caps.
+ */
+export function taperTubeMesh(
+  points: Vec3[],
+  radiusAt: (t: number) => number,
+  segs = 28,
+  radial = 6,
+): MeshData {
+  const n = points.length
+  const pt = (f: number): Vec3 => {
+    const i = Math.min(Math.floor(f), n - 2)
+    const t = f - i
+    const p0 = points[Math.max(i - 1, 0)]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[Math.min(i + 2, n - 1)]
+    const t2 = t * t
+    const t3 = t2 * t
+    return [0, 1, 2].map(
+      (k) =>
+        0.5 *
+        (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3),
+    ) as Vec3
+  }
+  const centre: Vec3[] = []
+  for (let s = 0; s <= segs; s++) centre.push(pt((s / segs) * (n - 1 - 1e-9)))
+  const positions: number[] = []
+  const normals: number[] = []
+  const indices: number[] = []
+  for (let s = 0; s <= segs; s++) {
+    const p = centre[s]
+    const q = centre[Math.min(s + 1, segs)]
+    const o = centre[Math.max(s - 1, 0)]
+    let t: Vec3 = [q[0] - o[0], q[1] - o[1], q[2] - o[2]]
+    const tl = Math.hypot(...t) || 1
+    t = [t[0] / tl, t[1] / tl, t[2] / tl]
+    // side = t x (0,0,1), up = side x t
+    let side: Vec3 = [t[1], -t[0], 0]
+    const sl = Math.hypot(...side) || 1
+    side = [side[0] / sl, side[1] / sl, 0]
+    const up: Vec3 = [
+      side[1] * t[2] - side[2] * t[1],
+      side[2] * t[0] - side[0] * t[2],
+      side[0] * t[1] - side[1] * t[0],
+    ]
+    const r = radiusAt(s / segs)
+    for (let k = 0; k < radial; k++) {
+      const ang = (k / radial) * TAU
+      const nx = Math.cos(ang) * side[0] + Math.sin(ang) * up[0]
+      const ny = Math.cos(ang) * side[1] + Math.sin(ang) * up[1]
+      const nz = Math.cos(ang) * side[2] + Math.sin(ang) * up[2]
+      positions.push(p[0] + nx * r, p[1] + ny * r, p[2] + nz * r)
+      normals.push(nx, ny, nz)
+    }
+  }
+  for (let s = 0; s < segs; s++) {
+    for (let k = 0; k < radial; k++) {
+      const k1 = (k + 1) % radial
+      const a0 = s * radial + k
+      const a1 = s * radial + k1
+      const b0 = (s + 1) * radial + k
+      const b1 = (s + 1) * radial + k1
+      indices.push(a0, b0, b1, a0, b1, a1)
+    }
+  }
+  return { positions, indices, normals }
+}
+
+/** The part of the face covered by the painted-detail patch (head-centre coordinates). */
+export const FACE_PATCH = { xMin: -0.066, xMax: 0.066, yMin: -0.1, yMax: 0.07, lift: 0.0012 } as const
+
+/**
+ * A thin skin-shaped sheet just in front of the face, UV-mapped as a plain rectangle in
+ * (x, y). A transparent painted texture (blush, eyeshadow, brows, lips) goes on it, so the
+ * face detail is soft and anti-aliased instead of being built from tubes.
+ */
+export function facePatchMesh(cols = 44, rows = 56): MeshData {
+  const { xMin, xMax, yMin, yMax, lift } = FACE_PATCH
+  const { rx, ry, rz } = HEAD.skin
+  const positions: number[] = []
+  const normals: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+  for (let j = 0; j <= rows; j++) {
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols
+      const v = j / rows
+      let x = xMin + u * (xMax - xMin)
+      let y = yMin + v * (yMax - yMin)
+      // Keep every vertex on the front of the skin ellipsoid (corners are transparent anyway).
+      const e = Math.hypot(x / rx, y / ry)
+      if (e > 0.96) {
+        x *= 0.96 / e
+        y *= 0.96 / e
+      }
+      const z = skinZ(x, y)
+      let nx = x / (rx * rx)
+      let ny = y / (ry * ry)
+      let nz = z / (rz * rz)
+      const nl = Math.hypot(nx, ny, nz)
+      nx /= nl
+      ny /= nl
+      nz /= nl
+      positions.push(x + nx * lift, y + ny * lift, z + nz * lift)
+      normals.push(nx, ny, nz)
+      uvs.push(u, v)
+    }
+  }
+  const stride = cols + 1
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a0 = j * stride + i
+      const a1 = a0 + 1
+      const b0 = a0 + stride
+      const b1 = b0 + 1
+      indices.push(a0, a1, b1, a0, b1, b0)
+    }
+  }
+  return { positions, indices, uvs, normals }
 }

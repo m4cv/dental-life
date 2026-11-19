@@ -21,6 +21,7 @@ import {
   COAT_COLLAR_Y,
   COAT_HEM_Y,
   COAT_SPLIT_Y,
+  FACE_PATCH,
   HEAD,
   LAPEL_POLY,
   V_NECK_POLY,
@@ -28,14 +29,19 @@ import {
   coatNormal,
   coatRing,
   decalMesh,
+  eyePoint,
+  facePatchMesh,
   hijabDrapeMesh,
   hijabShellMesh,
+  irisCapMesh,
+  lashLine,
   mirrorPoly,
   rectPoly,
   ribbonMesh,
   shellPoint,
   skinZ,
   strapPath,
+  taperTubeMesh,
   type MeshData,
   type Vec3,
 } from './charShapes'
@@ -48,7 +54,7 @@ import {
 export const CHAR_COLORS = {
   skin: '#dcae90',
   lip: '#b4636b',
-  brow: '#3a261e',
+  brow: '#2b1b15',
   iris: '#3a2418',
   hijab: '#cfb0ad',
   hijabFold: '#c2a19e',
@@ -112,11 +118,6 @@ function tube(points: Vec3[], radius: number, closed = false, segments = 48): Tu
     'centripetal',
   )
   return new TubeGeometry(curve, segments, radius, 6, closed)
-}
-
-/** Points along a face curve, lying `out` metres in front of the skin (head-centre coordinates). */
-function onSkin(curve: [number, number][], out: number): Vec3[] {
-  return curve.map(([x, y]) => [x, y, skinZ(x, y) + out] as Vec3)
 }
 
 function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) {
@@ -183,20 +184,268 @@ function badgeTexture() {
   })
 }
 
+
+/** Soft painted face detail on a transparent sheet: blush, eyeshadow, brows, lips (see facePatchMesh). */
+function faceTexture() {
+  const { xMin, xMax, yMin, yMax } = FACE_PATCH
+  const W = 640
+  const sx = W / (xMax - xMin)
+  const H = Math.round((yMax - yMin) * sx)
+  const X = (x: number) => (x - xMin) * sx
+  const Y = (y: number) => (yMax - y) * sx
+  return canvasTexture(W, H, (ctx) => {
+    ctx.clearRect(0, 0, W, H)
+    const glow = (cx: number, cy: number, rx: number, ry: number, rgb: string, a: number, mid = 0.55) => {
+      ctx.save()
+      ctx.translate(X(cx), Y(cy))
+      ctx.scale(rx * sx, ry * sx)
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+      g.addColorStop(0, `rgba(${rgb},${a})`)
+      g.addColorStop(mid, `rgba(${rgb},${a * 0.5})`)
+      g.addColorStop(1, `rgba(${rgb},0)`)
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(0, 0, 1, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    const smooth = (pts: [number, number][], close: boolean) => {
+      const P = pts.map(([x, y]) => [X(x), Y(y)] as [number, number])
+      const n = P.length
+      const mid = (i: number): [number, number] => {
+        const a = P[i % n]
+        const b = P[(i + 1) % n]
+        return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      }
+      ctx.beginPath()
+      if (close) {
+        const m0 = mid(n - 1)
+        ctx.moveTo(m0[0], m0[1])
+        for (let i = 0; i < n; i++) {
+          const m = mid(i)
+          ctx.quadraticCurveTo(P[i][0], P[i][1], m[0], m[1])
+        }
+        ctx.closePath()
+      } else {
+        ctx.moveTo(P[0][0], P[0][1])
+        for (let i = 1; i < n - 1; i++) {
+          const m = mid(i)
+          ctx.quadraticCurveTo(P[i][0], P[i][1], m[0], m[1])
+        }
+        ctx.lineTo(P[n - 1][0], P[n - 1][1])
+      }
+    }
+
+    // soft shading that settles the face into the hijab frame
+    {
+      const w = HEAD.window
+      ctx.save()
+      ctx.translate(X(0), Y(w.cy))
+      ctx.scale(w.ax * sx, w.ay * sx)
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+      g.addColorStop(0, 'rgba(120,68,52,0)')
+      g.addColorStop(0.7, 'rgba(120,68,52,0)')
+      g.addColorStop(1, 'rgba(120,68,52,0.2)')
+      ctx.fillStyle = g
+      ctx.fillRect(-1.4, -1.4, 2.8, 2.8)
+      ctx.restore()
+    }
+    // light on forehead, nose bridge, cheekbones, chin
+    glow(0, 0.054, 0.032, 0.017, '255,244,232', 0.12)
+    glow(0, 0.004, 0.007, 0.016, '255,244,232', 0.09)
+    glow(0.044, -0.004, 0.017, 0.012, '255,244,232', 0.08)
+    glow(-0.044, -0.004, 0.017, 0.012, '255,244,232', 0.08)
+    glow(0, -0.09, 0.015, 0.008, '255,244,232', 0.08)
+    // cheeks
+    for (const k of [1, -1]) {
+      glow(k * 0.041, -0.02, 0.031, 0.022, '226,104,116', 0.44)
+      glow(k * 0.04, -0.018, 0.016, 0.012, '232,92,108', 0.22)
+      // eyeshadow on the lid, and a soft shade under the eye
+      const [lx, ly] = eyePoint(0.001, 0.0135, k as 1 | -1)
+      glow(lx, ly, 0.0205, 0.0085, '150,92,84', 0.34)
+      const [ux, uy] = eyePoint(0.001, -0.0125, k as 1 | -1)
+      glow(ux, uy, 0.017, 0.0042, '160,100,90', 0.14)
+      // alar shadow beside the nose
+      glow(k * 0.0108, -0.0285, 0.006, 0.0055, '130,75,62', 0.16)
+      // smile-corner shade
+      glow(k * 0.0275, -0.0512, 0.0045, 0.0045, '130,75,62', 0.12)
+    }
+    glow(0, -0.0325, 0.011, 0.004, '130,75,62', 0.14)
+    glow(0, -0.0668, 0.016, 0.0045, '130,75,62', 0.16)
+
+    // eye crease and a thin lower lash line
+    for (const k of [1, -1] as const) {
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.shadowColor = 'rgba(110,65,55,0.5)'
+      ctx.shadowBlur = 2.5
+      ctx.strokeStyle = 'rgba(112,66,56,0.42)'
+      ctx.lineWidth = 1.7
+      smooth([eyePoint(-0.0115, 0.0182, k), eyePoint(0.002, 0.0218, k), eyePoint(0.0145, 0.0192, k), eyePoint(0.0225, 0.0125, k)], false)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.strokeStyle = 'rgba(70,42,34,0.5)'
+      ctx.lineWidth = 1.2
+      const low: [number, number][] = []
+      for (let i = 0; i <= 8; i++) {
+        const u = -0.0158 + (0.0316 * i) / 8
+        low.push(eyePoint(u, -0.0099 * Math.sqrt(Math.max(1 - (u / 0.0168) ** 2, 0)) - 0.0002, k))
+      }
+      smooth(low, false)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // eyebrows: soft arches, fuller at the inner end, tapering to a fine tail
+    for (const k of [1, -1]) {
+      const inner: [number, number] = [0.012, 0.0402]
+      const peak: [number, number] = [0.03, 0.0482]
+      const outer: [number, number] = [0.0418, 0.0386]
+      const path: [number, number][] = []
+      const N = 22
+      for (let i = 0; i <= N; i++) {
+        const t = i / N
+        const px = (1 - t) * (1 - t) * inner[0] + 2 * (1 - t) * t * peak[0] + t * t * outer[0]
+        const py = (1 - t) * (1 - t) * inner[1] + 2 * (1 - t) * t * peak[1] + t * t * outer[1]
+        path.push([k * px, py])
+      }
+      const half = (t: number) => 0.0021 * Math.pow(1 - t, 0.75) * (0.62 + 0.38 * Math.min(1, t / 0.2))
+      const up: [number, number][] = []
+      const dn: [number, number][] = []
+      for (let i = 0; i <= N; i++) {
+        const t = i / N
+        const a = path[Math.max(i - 1, 0)]
+        const b = path[Math.min(i + 1, N)]
+        let tx = b[0] - a[0]
+        let ty = b[1] - a[1]
+        const tl = Math.hypot(tx, ty) || 1
+        tx /= tl
+        ty /= tl
+        const h = half(t)
+        up.push([path[i][0] - ty * h, path[i][1] + tx * h])
+        dn.push([path[i][0] + ty * h, path[i][1] - tx * h])
+      }
+      const outline = [...up, ...dn.reverse()]
+      ctx.save()
+      ctx.shadowColor = 'rgba(70,44,34,0.55)'
+      ctx.shadowBlur = 2.2
+      ctx.fillStyle = 'rgba(66,42,32,0.93)'
+      ctx.beginPath()
+      outline.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(X(x), Y(y)) : ctx.lineTo(X(x), Y(y))))
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
+
+    // lips: rose lipstick, a touch fuller below, with a gentle smile
+    {
+      const y0 = -0.0535
+      const upper: [number, number][] = [
+        [-0.0245, y0 + 0.0016], [-0.0185, y0 + 0.0062], [-0.0105, y0 + 0.0084], [-0.004, y0 + 0.0068], [0, y0 + 0.0062],
+        [0.004, y0 + 0.0068], [0.0105, y0 + 0.0084], [0.0185, y0 + 0.0062], [0.0245, y0 + 0.0016],
+        [0.012, y0 + 0.0004], [0, y0 + 0.0001], [-0.012, y0 + 0.0004],
+      ]
+      const lower: [number, number][] = [
+        [-0.0245, y0 + 0.0016], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0016],
+        [0.02, y0 - 0.003], [0.0125, y0 - 0.0078], [0, y0 - 0.0098], [-0.0125, y0 - 0.0078], [-0.02, y0 - 0.003],
+      ]
+      ctx.save()
+      ctx.shadowColor = 'rgba(160,60,84,0.55)'
+      ctx.shadowBlur = 3
+      let g = ctx.createLinearGradient(0, Y(y0 + 0.0085), 0, Y(y0))
+      g.addColorStop(0, '#b45c6b')
+      g.addColorStop(1, '#9c4556')
+      ctx.fillStyle = g
+      smooth(upper, true)
+      ctx.fill()
+      g = ctx.createLinearGradient(0, Y(y0), 0, Y(y0 - 0.01))
+      g.addColorStop(0, '#bf6177')
+      g.addColorStop(1, '#cf7a8d')
+      ctx.fillStyle = g
+      smooth(lower, true)
+      ctx.fill()
+      ctx.restore()
+      // parting line
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = 'rgba(100,38,52,0.85)'
+      ctx.lineWidth = 1.5
+      smooth([[-0.0245, y0 + 0.0016], [-0.012, y0 + 0.0004], [0, y0 + 0.0001], [0.012, y0 + 0.0004], [0.0245, y0 + 0.0016]], false)
+      ctx.stroke()
+      ctx.restore()
+      glow(0, y0 - 0.0052, 0.0075, 0.0018, '255,255,255', 0.3)
+      glow(0, y0 + 0.0072, 0.005, 0.0009, '255,255,255', 0.14)
+    }
+
+    // fade the sheet out at its borders so there is never a hard edge on the skin
+    ctx.globalCompositeOperation = 'destination-in'
+    const fade = 0.07
+    let m = ctx.createLinearGradient(0, 0, W, 0)
+    m.addColorStop(0, 'rgba(0,0,0,0)')
+    m.addColorStop(fade, 'rgba(0,0,0,1)')
+    m.addColorStop(1 - fade, 'rgba(0,0,0,1)')
+    m.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = m
+    ctx.fillRect(0, 0, W, H)
+    m = ctx.createLinearGradient(0, 0, 0, H)
+    m.addColorStop(0, 'rgba(0,0,0,0)')
+    m.addColorStop(fade, 'rgba(0,0,0,1)')
+    m.addColorStop(1 - fade, 'rgba(0,0,0,1)')
+    m.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = m
+    ctx.fillRect(0, 0, W, H)
+  })
+}
+
+/** Brown iris with a dark rim, fine radial fibres and a black pupil (disc, mapped by irisCapMesh). */
+function irisTexture() {
+  return canvasTexture(256, 256, (ctx) => {
+    const c = 128
+    ctx.clearRect(0, 0, 256, 256)
+    const g = ctx.createRadialGradient(c, c, 0, c, c, c)
+    g.addColorStop(0, '#2a180e')
+    g.addColorStop(0.3, '#46281a')
+    g.addColorStop(0.62, '#7a4a2c')
+    g.addColorStop(0.88, '#43271a')
+    g.addColorStop(1, '#1d110c')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(c, c, c - 1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.lineWidth = 1.6
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2 + (i % 3) * 0.04
+      ctx.strokeStyle = i % 2 ? 'rgba(190,135,88,0.20)' : 'rgba(30,16,10,0.22)'
+      ctx.beginPath()
+      ctx.moveTo(c + Math.cos(a) * c * 0.36, c + Math.sin(a) * c * 0.36)
+      ctx.lineTo(c + Math.cos(a) * c * 0.86, c + Math.sin(a) * c * 0.86)
+      ctx.stroke()
+    }
+    ctx.fillStyle = '#0b0605'
+    ctx.beginPath()
+    ctx.arc(c, c, c * 0.34, 0, Math.PI * 2)
+    ctx.fill()
+  })
+}
 const std = (color: string, roughness: number, extra: MeshStandardMaterialParameters = {}) =>
   new MeshStandardMaterial({ color, roughness, ...extra })
 
 function buildAssets() {
   const C = CHAR_COLORS
 
-  // ---- face curves (head-centre coordinates) ----
-  const browL: [number, number][] = [[0.013, 0.043], [0.031, 0.0465], [0.054, 0.041]]
-  const browR = browL.map(([x, y]) => [-x, y] as [number, number])
-  const lashL: [number, number][] = [[0.0165, 0.0105], [0.0335, 0.0225], [0.0495, 0.0135], [0.0555, 0.017]]
+  // ---- eyeliner: the left-eye lash line, mirrored for the right eye ----
+  const lashL: [number, number][] = lashLine()
   const lashR = lashL.map(([x, y]) => [-x, y] as [number, number])
-  const upperLip: [number, number][] = [[-0.025, -0.0505], [-0.011, -0.0565], [0, -0.0555], [0.011, -0.0565], [0.025, -0.0505]]
-  const lowerLip: [number, number][] = [[-0.021, -0.0545], [-0.01, -0.0625], [0, -0.065], [0.01, -0.0625], [0.021, -0.0545]]
-  const mouthLine: [number, number][] = [[-0.027, -0.0515], [-0.012, -0.0578], [0.012, -0.0578], [0.027, -0.0515]]
+  const linerZ = 0.0048
+  const liner = (curve: [number, number][]) =>
+    toGeometry(
+      taperTubeMesh(
+        curve.map(([x, y]) => [x, y, skinZ(x, y) + linerZ] as Vec3),
+        (t) => 0.0007 + 0.0024 * Math.pow(Math.sin(Math.PI * Math.min(Math.pow(t, 0.8), 1)), 0.9),
+        28,
+        6,
+      ),
+    )
 
   // ---- hijab rim around the face window + forehead fold ----
   const w = HEAD.window
@@ -230,11 +479,9 @@ function buildAssets() {
     ),
     strap: toGeometry(ribbonMesh(strapPath(), coatNormal, 0.03)),
     button: new CylinderGeometry(0.0125, 0.0125, 0.006, 18).rotateX(Math.PI / 2),
-    brow: [tube(onSkin(browL, 0.003), 0.0026, false, 16), tube(onSkin(browR, 0.003), 0.0026, false, 16)],
-    lash: [tube(onSkin(lashL, 0.0045), 0.0022, false, 16), tube(onSkin(lashR, 0.0045), 0.0022, false, 16)],
-    upperLip: tube(onSkin(upperLip, 0.0015), 0.0032, false, 16),
-    lowerLip: tube(onSkin(lowerLip, 0.0015), 0.0042, false, 16),
-    mouthLine: tube(onSkin(mouthLine, 0.0018), 0.0012, false, 16),
+    lash: [liner(lashL), liner(lashR)],
+    facePatch: toGeometry(facePatchMesh()),
+    irisCap: toGeometry(irisCapMesh()),
     thigh: new CylinderGeometry(0.075, 0.062, 0.4, 18),
     shin: new CylinderGeometry(0.058, 0.043, 0.37, 18),
     upperArm: new CapsuleGeometry(0.05, 0.18, 6, 14),
@@ -250,18 +497,26 @@ function buildAssets() {
     neck: new CylinderGeometry(0.034, 0.038, 0.09, 14),
   }
 
+  const faceMap = faceTexture()
+  const irisMap = irisTexture()
   const pinMap = pinTexture()
   const badgeMap = badgeTexture()
 
   const mat = {
     skin: std(C.skin, 0.62),
-    lip: std(C.lip, 0.5),
-    brow: std(C.brow, 0.8),
-    sclera: std('#f6f1ea', 0.35),
-    iris: std(C.iris, 0.3),
-    pupil: std('#0d0807', 0.2),
+    brow: std(C.brow, 0.6),
+    sclera: std('#f4eee8', 0.35),
+    iris: std('#ffffff', 0.22, { map: irisMap, transparent: true }),
+    nostril: std('#6a4038', 0.7),
     glint: new MeshBasicMaterial({ color: '#ffffff' }),
-    blush: new MeshBasicMaterial({ color: '#e0757a', transparent: true, opacity: 0.2, depthWrite: false }),
+    faceArt: std('#ffffff', 0.6, {
+      map: faceMap,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }),
     hijab: std(C.hijab, 0.85, { side: DoubleSide }),
     hijabFold: std(C.hijabFold, 0.88),
     coat: std(C.coat, 0.9, { side: DoubleSide }),

@@ -2,7 +2,7 @@ import { useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group, Material, Mesh } from 'three'
 import { getCharacterAssets } from './assets'
-import { COAT_HEM_Y, COAT_SPLIT_Y, HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
+import { COAT_HEM_Y, COAT_SPLIT_Y, EYE, HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
 import { RIG, SKIRT_FLARE_MAX, advancePhase, createPose, solvePose } from './animations/pose'
 
 type V3 = [number, number, number]
@@ -53,17 +53,17 @@ function Flower({ position, yaw, scale = 1 }: { position: V3; yaw: number; scale
 }
 
 function Eye({ side, lidRef }: { side: 1 | -1; lidRef: RefObject<Group | null> }) {
-  const { mat } = getCharacterAssets()
-  const x = 0.033
-  const y = 0.012
+  const { geo, mat } = getCharacterAssets()
+  const { x, y, a, b, c } = EYE
+  const lidTop = b + 0.0006
   return (
-    <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.12, 0]}>
-      <Ell mat={mat.sclera} s={[0.0165, 0.0095, 0.0042]} shadow={false} />
-      <Ell mat={mat.iris} p={[0, 0, 0.003]} s={[0.0079, 0.0079, 0.003]} shadow={false} />
-      <Ell mat={mat.pupil} p={[0, 0, 0.0045]} s={[0.004, 0.004, 0.0016]} shadow={false} />
-      <Ell mat={mat.glint} p={[0.0026, 0.0026, 0.0056]} s={[0.0015, 0.0015, 0.001]} shadow={false} />
-      <group ref={lidRef} position={[0, 0.0105, 0.0016]} scale={[1, 0.001, 1]}>
-        <Ell mat={mat.skin} p={[0, -0.0105, 0]} s={[0.0178, 0.0112, 0.006]} shadow={false} />
+    <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.12, side * EYE.tilt]}>
+      <Ell mat={mat.sclera} s={[a, b, c]} shadow={false} />
+      <mesh geometry={geo.irisCap} material={mat.iris} />
+      <Ell mat={mat.glint} p={[0.003, 0.0033, c * 1.1]} s={[0.0017, 0.0017, 0.001]} shadow={false} />
+      <Ell mat={mat.glint} p={[-0.0028, -0.0029, c * 1.06]} s={[0.0008, 0.0008, 0.0006]} shadow={false} />
+      <group ref={lidRef} position={[0, lidTop, 0.0016]} scale={[1, 0.001, 1]}>
+        <Ell mat={mat.skin} p={[0, -lidTop, 0]} s={[a + 0.0012, b + 0.001, 0.0068]} shadow={false} />
       </group>
     </group>
   )
@@ -74,33 +74,28 @@ function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<G
   const s = HEAD.skin
 
   // Flower on the hijab beside the character's right temple, tilted to follow the shell.
-  const fx = -0.083
-  const fy = 0.012
+  const fx = -0.087
+  const fy = 0.014
   const fz = HEAD.shell.rz * Math.sqrt(1 - (fx / HEAD.shell.rx) ** 2 - (fy / HEAD.shell.ry) ** 2)
   const fyaw = Math.atan2(fx / HEAD.shell.rx ** 2, fz / HEAD.shell.rz ** 2)
 
   return (
     <>
       <Ell mat={mat.skin} s={[s.rx, s.ry, s.rz]} hi />
-      {/* nose */}
-      <Ell mat={mat.skin} p={[0, -0.002, skinZ(0, -0.002) + 0.0005]} s={[0.0055, 0.015, 0.0046]} shadow={false} />
-      <Ell mat={mat.skin} p={[0, -0.0235, skinZ(0, -0.0235) + 0.0028]} s={[0.0088, 0.0078, 0.0088]} shadow={false} />
+      {/* painted detail: blush, eyeshadow, brows, lips */}
+      <mesh geometry={geo.facePatch} material={mat.faceArt} renderOrder={2} />
+      {/* nose: a short soft bridge, rounded tip, wings and nostrils */}
+      <Ell mat={mat.skin} p={[0, -0.006, skinZ(0, -0.006)]} s={[0.0038, 0.0085, 0.0032]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.0242, skinZ(0, -0.0242) + 0.0026]} s={[0.0082, 0.0072, 0.0082]} shadow={false} />
       {[1, -1].map((k) => (
         <group key={k}>
-          <Ell mat={mat.skin} p={[k * 0.0078, -0.0255, skinZ(0.0078, -0.0255) + 0.0004]} s={[0.0052, 0.0047, 0.005]} shadow={false} />
-          <Ell mat={mat.pupil} p={[k * 0.0042, -0.0305, skinZ(0.0042, -0.0305) + 0.0032]} s={[0.002, 0.0013, 0.0017]} shadow={false} />
-          <mesh position={[k * 0.047, -0.028, skinZ(0.047, -0.028) + 0.0025]} rotation={[0, k * 0.6, 0]} material={mat.blush}>
-            <circleGeometry args={[0.019, 20]} />
-          </mesh>
+          <Ell mat={mat.skin} p={[k * 0.0075, -0.0255, skinZ(0.0075, -0.0255) + 0.0004]} s={[0.005, 0.0045, 0.0048]} shadow={false} />
+          <Ell mat={mat.nostril} p={[k * 0.0042, -0.03, skinZ(0.0042, -0.03) + 0.003]} s={[0.0019, 0.0012, 0.0016]} shadow={false} />
         </group>
       ))}
       <Eye side={1} lidRef={lidL} />
       <Eye side={-1} lidRef={lidR} />
-      {geo.brow.map((g, i) => <mesh key={`b${i}`} geometry={g} material={mat.brow} />)}
       {geo.lash.map((g, i) => <mesh key={`l${i}`} geometry={g} material={mat.brow} />)}
-      <mesh geometry={geo.upperLip} material={mat.lip} />
-      <mesh geometry={geo.lowerLip} material={mat.lip} />
-      <mesh geometry={geo.mouthLine} material={mat.pupil} />
 
       {/* hijab: shell with the face window, soft rim, forehead fold, flower */}
       <mesh geometry={geo.hijabShell} material={mat.hijab} castShadow receiveShadow />
