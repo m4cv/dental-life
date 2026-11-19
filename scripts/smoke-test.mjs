@@ -4,6 +4,7 @@
 // can be inspected from the run log alone.
 import fs from 'node:fs'
 import { chromium } from 'playwright-core'
+import { RUN, WALK, pilotStick } from './pilot-law.mjs'
 
 const URL = process.env.SMOKE_URL ?? 'http://127.0.0.1:4173/'
 const OUT = 'smoke-output'
@@ -500,7 +501,7 @@ const steer = async (d, tx, tz, m) => {
   const fz = Math.cos(yaw)
   await stick4(((dz * fx - dx * fz) / dist) * m, ((dx * fx + dz * fz) / dist) * m)
 }
-const walkTo = async (tx, tz, { tol = 0.25, slow = false, ms = 45000 } = {}) => {
+const walkTo = async (tx, tz, { tol = 0.25, slow = false, ms = 45000, run = false } = {}) => {
   const t0 = Date.now()
   let d = null
   while (Date.now() - t0 < ms) {
@@ -514,7 +515,8 @@ const walkTo = async (tx, tz, { tol = 0.25, slow = false, ms = 45000 } = {}) => 
       await letGo()
       return d
     }
-    await steer(d, tx, tz, Math.min(slow ? 0.6 : 1, Math.max(0.4, dist / 0.9)))
+    const [sx, sy] = pilotStick(d, tx, tz, { tol, cap: slow ? 0.6 : 1, top: run ? RUN : WALK })
+    await stick4(sx, sy)
     await p4.waitForTimeout(90)
   }
   await letGo()
@@ -522,11 +524,19 @@ const walkTo = async (tx, tz, { tol = 0.25, slow = false, ms = 45000 } = {}) => 
   return null
 }
 /** Keeps pushing toward a point for `ms` (used to lean on a closed door). */
-const pushToward = async (tx, tz, ms) => {
+const pushToward = async (tx, tz, ms, { settle = false } = {}) => {
+  // with `settle`, `ms` is the least time to push; she keeps pushing (up to six times as long) until she has stopped against something,
+  // so a slow machine (the game runs slower than real time below two frames a second) does not end the push before she gets there
   const t0 = Date.now()
-  while (Date.now() - t0 < ms) {
+  const limit = settle ? Math.min(ms * 6, 90000) : ms
+  let still = 0
+  while (Date.now() - t0 < limit) {
     const d = await read4()
-    if (d) await steer(d, tx, tz, 1)
+    if (d) {
+      await steer(d, tx, tz, 1)
+      still = d.speed < 0.1 ? still + 1 : 0
+      if (settle && Date.now() - t0 >= ms && still >= 3) break
+    }
     await p4.waitForTimeout(90)
   }
   await letGo()
@@ -662,7 +672,9 @@ shots4.door = await p4.screenshot({ path: `${OUT}/s4-4-front-door-shut.png` })
 // ---- 4. dining area: pack the notebook, have breakfast ----
 await route([[2.55, -2.4, { tol: 0.35 }], [2.55, -4.9, { tol: 0.35 }], [2.75, -6.1, { tol: 0.3 }], [2.7, -6.95, { tol: 0.3 }], [2.45, -7.2, { tol: 0.3 }], [2.45, -8.2, { tol: 0.3, slow: true }]])
 await doStep('pack', 'Pack notebook', '06:44')
-await route([[2.45, -7.1, { tol: 0.3 }], [4.95, -7.0, { tol: 0.3 }], [4.95, -8.1, { tol: 0.3, slow: true }]])
+// (the way to the table's east end is a channel only about 0.8 m wide between the wall and the chairs, and the doorway
+// into the living room is right beside its start: the waypoints keep clear of the doorway before they enter it)
+await route([[2.5, -7.5, { tol: 0.3 }], [3.6, -7.0, { tol: 0.3 }], [4.95, -7.0, { tol: 0.3 }], [4.95, -8.1, { tol: 0.3, slow: true }]])
 await doStep('eat', 'Have breakfast', '06:56')
 
 // ---- 5. bathroom: brush teeth ----
@@ -753,7 +765,7 @@ try {
 
   // the yard has walls: leaning on the east wall stops her
   await route([[2.5, 2.4, { tol: 0.4 }]])
-  await pushToward(12, 1.2, 4500)
+  await pushToward(12, 1.2, 4500, { settle: true })
   const eastWall = await read4()
   check('the wall around the yard stops her (she walks east across the yard but cannot go out)', !!eastWall && eastWall.x > 7.2 && eastWall.x < 8.4, fmt4(eastWall))
   shots5.push(await p4.screenshot({ path: `${OUT}/s5-2-yard-wall.png` }))
@@ -767,11 +779,11 @@ try {
   shots5.push(await p4.screenshot({ path: `${OUT}/s5-3-lane.png` }))
 
   // the buildings on both sides of the lane are solid
-  await pushToward(2.5, 20, 3800)
+  await pushToward(2.5, 20, 3800, { settle: true })
   const south = await read4()
   check('the building across the lane stops her (south side)', !!south && south.z > 9 && south.z < 10.5, fmt4(south))
   await route([[10, 7.4, { tol: 0.5 }]])
-  await pushToward(10, -20, 3500)
+  await pushToward(10, -20, 3500, { settle: true })
   const north = await read4()
   check('the walls on the home side stop her (north side)', !!north && north.z > 4.7 && north.z < 6, fmt4(north))
 
@@ -779,7 +791,7 @@ try {
   // (the read-out is a few tenths of a second old, and at running speed that is metres: a tight waypoint would make the pilot
   // overshoot and circle it, so the run uses loose waypoints and the precise ones come back at walking pace)
   await p4.getByTestId('btn-run').tap()
-  const eastLane = await route([[18, 7.6, { tol: 2.2 }], [34, 7.6, { tol: 2.2 }], [50, 7.6, { tol: 2.2 }], [60, 7.6, { tol: 2.2 }]], { ms: 40000 })
+  const eastLane = await route([[18, 7.6, { tol: 2.2 }], [34, 7.6, { tol: 2.2 }], [50, 7.6, { tol: 2.2 }], [60, 7.6, { tol: 2.2 }]], { ms: 40000, run: true })
   await p4.getByTestId('btn-run').tap()
   check('she runs east along the lane for about 60 m', !!eastLane && eastLane.x > 57, fmt4(eastLane))
   shots5.push(await p4.screenshot({ path: `${OUT}/s5-4-lane-east.png` }))
@@ -791,12 +803,12 @@ try {
   // across the road to the east pavement; the buildings beyond are solid
   const across = await route([[79, 7.6, { tol: 0.8 }], [92.4, 7.6, { tol: 0.6 }]], { ms: 40000 })
   check('she crosses both carriageways and the median to the east pavement', !!across && across.x > 91, fmt4(across))
-  await pushToward(110, 7.6, 3000)
+  await pushToward(110, 7.6, 3000, { settle: true })
   const eastEnd = await read4()
   check('the shops on the east side are solid (she stops at the pavement edge)', !!eastEnd && eastEnd.x > 92 && eastEnd.x < 93.8, fmt4(eastEnd))
 
   // north along the pavement to the road-works barrier
-  await pushToward(92.4, -60, 15000)
+  await pushToward(92.4, -60, 15000, { settle: true })
   const barrier = await read4()
   check('the barrier closes the road at the north end (she cannot go past it)', !!barrier && barrier.z > -30.1 && barrier.z < -28.9, fmt4(barrier))
   await p4.waitForTimeout(1200)
