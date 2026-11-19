@@ -29,6 +29,7 @@ import {
   coatNormal,
   coatRing,
   decalMesh,
+  eyeLidMesh,
   eyePoint,
   facePatchMesh,
   hijabDrapeMesh,
@@ -107,6 +108,15 @@ function withFlareMorph(g: BufferGeometry): BufferGeometry {
     out[i * 3 + 2] = cz + (z - cz) * (1 + SKIRT_FLARE_MAX * w)
   }
   g.morphAttributes.position = [new Float32BufferAttribute(out, 3)]
+  g.morphTargetsRelative = false
+  return g
+}
+
+/** Eyelid sheet: closed shape plus a "relaxed open" morph target (influence 1 = open). */
+function withRestMorph(): BufferGeometry {
+  const { mesh, rest } = eyeLidMesh()
+  const g = toGeometry(mesh)
+  g.morphAttributes.position = [new Float32BufferAttribute(rest, 3)]
   g.morphTargetsRelative = false
   return g
 }
@@ -482,6 +492,7 @@ function buildAssets() {
     lash: [liner(lashL), liner(lashR)],
     facePatch: toGeometry(facePatchMesh()),
     irisCap: toGeometry(irisCapMesh()),
+    eyeLid: withRestMorph(),
     thigh: new CylinderGeometry(0.075, 0.062, 0.4, 18),
     shin: new CylinderGeometry(0.058, 0.043, 0.37, 18),
     upperArm: new CapsuleGeometry(0.05, 0.18, 6, 14),
@@ -508,6 +519,7 @@ function buildAssets() {
     sclera: std('#f4eee8', 0.35),
     iris: std('#ffffff', 0.22, { map: irisMap, transparent: true }),
     nostril: std('#6a4038', 0.7),
+    lid: std('#d2a38b', 0.62, { side: DoubleSide }),
     glint: new MeshBasicMaterial({ color: '#ffffff' }),
     faceArt: std('#ffffff', 0.6, {
       map: faceMap,

@@ -2,7 +2,7 @@
 import {
   HEAD, COAT_RINGS, COAT_SPLIT_Y, coatMesh, coatImplicit, coatFrontZ, hijabShellMesh, hijabDrapeMesh,
   drapeRing, drapeHem, decalMesh, rectPoly, LAPEL_POLY, V_NECK_POLY, mirrorPoly, strapPath, ribbonMesh, coatNormal,
-  skinZ, shellZ, EYE, FACE_PATCH, eyePoint, lashLine, irisCapMesh, taperTubeMesh, facePatchMesh,
+  skinZ, shellZ, eyeLidMesh, EYE, FACE_PATCH, eyePoint, lashLine, irisCapMesh, taperTubeMesh, facePatchMesh,
 } from '../src/character/charShapes.ts'
 
 let failures = 0
@@ -189,6 +189,24 @@ check('skin sits inside the shell at the rim', skinZ(0.04, 0.05) < shellZ(0.04, 
   let unit = true
   for (let i = 0; i < tube.normals.length; i += 3) if (Math.abs(Math.hypot(tube.normals[i], tube.normals[i + 1], tube.normals[i + 2]) - 1) > 1e-6) unit = false
   check('eyeliner normals are unit length', unit)
+}
+{
+  const { mesh: lid, rest } = eyeLidMesh()
+  check('eyelid is well-formed', finite(lid) && rest.length === lid.positions.length && rest.every(Number.isFinite))
+  let front = 0, tris = 0
+  for (let q = 0; q < lid.indices.length; q += 3) {
+    const P = (n) => lid.positions.slice(n * 3, n * 3 + 3)
+    const [A, B, C] = [P(lid.indices[q]), P(lid.indices[q + 1]), P(lid.indices[q + 2])]
+    const nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0])
+    if (Math.abs(nz) > 1e-15) { tris++; if (nz > 0) front++ }
+  }
+  check('eyelid faces the front (+z)', front === tris && tris > 40, `${front}/${tris}`)
+  // relaxed lid: its lower edge at the eye centre must sit below the top of the opening and above the iris centre
+  const nx = 16, ny = 4, mid = nx / 2
+  const edgeRest = rest[(ny * (nx + 1) + mid) * 3 + 1]
+  const edgeClosed = lid.positions[(ny * (nx + 1) + mid) * 3 + 1]
+  check('relaxed lid covers only the top of the iris', edgeRest < EYE.irisR && edgeRest > 0.004, `edge at ${(edgeRest * 1000).toFixed(1)} mm, iris top ${(EYE.irisR * 1000).toFixed(1)} mm`)
+  check('closed lid covers the whole opening', edgeClosed < -0.009, `edge at ${(edgeClosed * 1000).toFixed(1)} mm`)
 }
 {
   const patch = facePatchMesh()

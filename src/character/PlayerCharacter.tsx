@@ -1,4 +1,4 @@
-import { useMemo, useRef, type RefObject } from 'react'
+import { useMemo, useRef, type MutableRefObject, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group, Material, Mesh } from 'three'
 import { getCharacterAssets } from './assets'
@@ -52,24 +52,29 @@ function Flower({ position, yaw, scale = 1 }: { position: V3; yaw: number; scale
   )
 }
 
-function Eye({ side, lidRef }: { side: 1 | -1; lidRef: RefObject<Group | null> }) {
+function Eye({ side, lidRef }: { side: 1 | -1; lidRef: MutableRefObject<Mesh | null> }) {
   const { geo, mat } = getCharacterAssets()
   const { x, y, a, b, c } = EYE
-  const lidTop = b + 0.0006
   return (
     <group position={[side * x, y, skinZ(x, y) - 0.002]} rotation={[0, side * 0.12, side * EYE.tilt]}>
       <Ell mat={mat.sclera} s={[a, b, c]} shadow={false} />
       <mesh geometry={geo.irisCap} material={mat.iris} />
       <Ell mat={mat.glint} p={[0.003, 0.0033, c * 1.1]} s={[0.0017, 0.0017, 0.001]} shadow={false} />
       <Ell mat={mat.glint} p={[-0.0028, -0.0029, c * 1.06]} s={[0.0008, 0.0008, 0.0006]} shadow={false} />
-      <group ref={lidRef} position={[0, lidTop, 0.0016]} scale={[1, 0.001, 1]}>
-        <Ell mat={mat.skin} p={[0, -lidTop, 0]} s={[a + 0.0012, b + 0.001, 0.0068]} shadow={false} />
-      </group>
+      {/* upper eyelid: morph target = relaxed-open, base = closed (blink) */}
+      <mesh
+        geometry={geo.eyeLid}
+        material={mat.lid}
+        ref={(m) => {
+          lidRef.current = m
+          m?.updateMorphTargets()
+        }}
+      />
     </group>
   )
 }
 
-function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<Group | null> }) {
+function Head({ lidL, lidR }: { lidL: MutableRefObject<Mesh | null>; lidR: MutableRefObject<Mesh | null> }) {
   const { geo, mat } = getCharacterAssets()
   const s = HEAD.skin
 
@@ -85,7 +90,7 @@ function Head({ lidL, lidR }: { lidL: RefObject<Group | null>; lidR: RefObject<G
       {/* painted detail: blush, eyeshadow, brows, lips */}
       <mesh geometry={geo.facePatch} material={mat.faceArt} renderOrder={2} />
       {/* nose: a low soft bridge blending into a small rounded tip, with wings and nostrils */}
-      <Ell mat={mat.skin} p={[0, -0.0115, skinZ(0, -0.0115) - 0.0003]} s={[0.0032, 0.0125, 0.002]} shadow={false} />
+      <Ell mat={mat.skin} p={[0, -0.0115, skinZ(0, -0.0115) - 0.0009]} s={[0.0026, 0.0125, 0.0016]} shadow={false} />
       <Ell mat={mat.skin} p={[0, -0.0238, skinZ(0, -0.0238) + 0.002]} s={[0.007, 0.006, 0.0066]} shadow={false} />
       {[1, -1].map((k) => (
         <group key={k}>
@@ -201,8 +206,8 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
   const elbowL = useRef<Group>(null)
   const shoulderR = useRef<Group>(null)
   const elbowR = useRef<Group>(null)
-  const lidL = useRef<Group>(null)
-  const lidR = useRef<Group>(null)
+  const lidL = useRef<Mesh | null>(null)
+  const lidR = useRef<Mesh | null>(null)
   const skirtMesh = useRef<Mesh | null>(null)
   const placketMesh = useRef<Mesh | null>(null)
   const lowerButtonRefs = useRef<(Mesh | null)[]>([])
@@ -268,10 +273,11 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
     shoulderR.current?.rotation.set(-pose.armR.pitch, 0, -pose.armR.abduct)
     elbowR.current?.rotation.set(-pose.armR.elbow, 0, 0)
 
-    // The upper lid always rests over the top of the eye a little (a relaxed, natural look).
-    const lid = Math.max(pose.blink, 0.13)
-    lidL.current?.scale.set(1, lid, 1)
-    lidR.current?.scale.set(1, lid, 1)
+    // Morph influence 1 = lid relaxed over the top of the eye, 0 = closed (blink).
+    const open = 1 - Math.min(Math.max(pose.blink, 0), 1)
+    for (const lid of [lidL.current, lidR.current]) {
+      if (lid?.morphTargetInfluences) lid.morphTargetInfluences[0] = open
+    }
   })
 
 

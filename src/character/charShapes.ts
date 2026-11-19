@@ -760,3 +760,62 @@ export function facePatchMesh(cols = 44, rows = 56): MeshData {
   }
   return { positions, indices, uvs, normals }
 }
+
+/**
+ * Upper eyelid sheet in the eye's local frame (same frame as irisCapMesh). `mesh` is the
+ * closed lid (covers the whole opening); `rest` is the same grid with the lid raised to its
+ * relaxed-open position, used as a morph target. Its upper boundary dips under the skin so
+ * the lid blends into the face; only the lid edge and a faint crease line show.
+ */
+export function eyeLidMesh(nx = 16, ny = 4): { mesh: MeshData; rest: number[] } {
+  const { a, b, c } = EYE
+  const av = 0.0166 // visible half width of the eye opening
+  const bv = 0.0106 // visible half height
+  const xr = av + 0.0016
+  const lift = 0.0016
+  const restDrop = 0.005
+  const shape = (x: number) => Math.sqrt(Math.max(1 - (x / av) ** 2, 0))
+  const build = (closed: boolean) => {
+    const pos: number[] = []
+    for (let j = 0; j <= ny; j++) {
+      for (let i = 0; i <= nx; i++) {
+        const x = -xr + (2 * xr * i) / nx
+        const sh = shape(x)
+        const top = bv * sh + 0.0016
+        const edge = closed ? -bv * sh - 0.0014 : top - restDrop * Math.pow(sh, 0.5)
+        const y = top + (edge - top) * (j / ny)
+        const zs = c * Math.sqrt(Math.max(1 - (x / a) ** 2 - (y / b) ** 2, 0))
+        pos.push(x, y, zs + lift)
+      }
+    }
+    return pos
+  }
+  const positions = build(true)
+  const rest = build(false)
+  const normals: number[] = []
+  for (let k = 0; k < positions.length; k += 3) {
+    const x = positions[k]
+    const y = positions[k + 1]
+    const z = Math.max(positions[k + 2] - lift, 0.0003)
+    let nxv = x / (a * a)
+    let nyv = y / (b * b)
+    let nzv = z / (c * c)
+    const nl = Math.hypot(nxv, nyv, nzv)
+    nxv /= nl
+    nyv /= nl
+    nzv /= nl
+    normals.push(nxv, nyv, nzv)
+  }
+  const indices: number[] = []
+  const stride = nx + 1
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const a0 = j * stride + i
+      const a1 = a0 + 1
+      const b0 = a0 + stride
+      const b1 = b0 + 1
+      indices.push(a0, b0, b1, a0, b1, a1)
+    }
+  }
+  return { mesh: { positions, indices, normals }, rest }
+}
