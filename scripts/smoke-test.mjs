@@ -969,15 +969,9 @@ try {
   check('while the car is moving, Get out is disabled and says to stop first', (await btn().isDisabled()) && ((await p4.getByTestId('interact-note').innerText().catch(() => '')) || '').includes('Stop the car'))
   await stopCar()
 
-  // steering: the stick turns the car (left = north)
+  // the south wall of the lane: pressing against it, however hard, the car stays inside the lane.
+  // (the lane has a side lane at x 28..34, so only x below 26.5 is watched and the push ends there)
   shots6.push(await p4.screenshot({ path: `${OUT}/s6-3-stopped.png` }))
-  const lane6 = await read4()
-  await setDrive({ pedal: 'gas', stick: [-0.9, 0] })
-  const north6 = await until6((d) => d.z < lane6.z - 1.5, 60000)
-  check('pushing the stick left turns the car to the left (north) while it drives', north6.hit, `${fmt4(lane6)} → ${fmt4(north6.d)}`)
-  await stopCar()
-
-  // steering right until the south wall of the lane: the car can never be inside it, however hard she presses
   await setDrive({ pedal: 'gas', stick: [0.9, 0] })
   let maxZ = -Infinity
   let contactAt = null
@@ -985,14 +979,14 @@ try {
   while (Date.now() - tWall < 60000) {
     const d = await read4()
     if (d) {
-      if (d.x < 60) maxZ = Math.max(maxZ, d.z)
+      if (d.x < 26.5) maxZ = Math.max(maxZ, d.z)
       if (d.z > 9.2 && contactAt === null) contactAt = Date.now()
-      if (d.x > 56 || (contactAt !== null && Date.now() - contactAt > 3500)) break
+      if (d.x > 26.5 || (contactAt !== null && Date.now() - contactAt > 3500)) break
     }
     await p4.waitForTimeout(150)
   }
-  check('steering right she reaches the wall on the south side of the lane', contactAt !== null, `max z ${maxZ.toFixed(2)}`)
-  check('the wall stops her: the car stays inside the lane (z below 10.2) however hard she presses', maxZ < 10.2, `max z ${maxZ.toFixed(2)}`)
+  check('steering right she presses against the wall on the south side of the lane', contactAt !== null, `max z ${maxZ.toFixed(2)}`)
+  check('the wall stops her: the car stays inside the lane (z below 10.2) however hard she presses', maxZ > 9 && maxZ < 10.2, `max z ${maxZ.toFixed(2)}`)
   shots6.push(await p4.screenshot({ path: `${OUT}/s6-4-wall.png` }))
 
   // Brake: slows the car and, once stopped, reverses (gear R)
@@ -1009,6 +1003,14 @@ try {
     await p4.waitForTimeout(150)
   }
   check('Brake stops the car and then backs it up (the speedometer shows gear R)', revSpeed > 0.6, `${revSpeed} m/s in reverse`)
+  await stopCar()
+
+  // steering: the stick turns the car (left = north)
+  const lane6 = await read4()
+  await setDrive({ pedal: 'gas', stick: [-0.9, 0] })
+  const north6 = await until6((d) => d.z < lane6.z - 1.5, 60000)
+  check('pushing the stick left turns the car to the left (north) while it drives', north6.hit, `${fmt4(lane6)} → ${fmt4(north6.d)}`)
+  await stopCar()
 
   // stop and get out
   await releaseAll6()
@@ -1019,8 +1021,10 @@ try {
   await btn().tap()
   await p4.waitForFunction(() => !document.querySelector('[data-testid="speedometer"]'), null, { timeout: 15000 }).catch(() => {})
   check('Get out puts her back on foot: the pedals and the speedometer are gone and Run is back', (await speedo().count()) === 0 && (await p4.getByTestId('btn-gas').count()) === 0 && (await p4.getByTestId('btn-run').count()) === 1)
-  const out6 = await read4()
-  check('she is standing next to the car, not inside it', !!out6 && !!stopped6 && Math.hypot(out6.x - stopped6.x, out6.z - stopped6.z) > 0.6 && Math.hypot(out6.x - stopped6.x, out6.z - stopped6.z) < 3.5, `${fmt4(stopped6)} → ${fmt4(out6)}`)
+  // the read-out lags by a frame or two: wait until it shows her new place
+  const away6 = (d) => Math.hypot(d.x - stopped6.x, d.z - stopped6.z)
+  const out6 = (await until6((d) => away6(d) > 0.6, 15000)).d
+  check('she is standing next to the car, not inside it', !!out6 && !!stopped6 && away6(out6) > 0.6 && away6(out6) < 3.5, `${fmt4(stopped6)} → ${fmt4(out6)}`)
   check('and the button offers "Get in car" again', await waitLabel('Get in car'))
   await p4.waitForTimeout(1500)
   shots6.push(await p4.screenshot({ path: `${OUT}/s6-5-out.png` }))

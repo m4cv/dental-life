@@ -142,7 +142,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     const c = cam.current
     c.dist = walkCam.current.dist || c.dist
     c.pitch = walkCam.current.pitch || c.pitch
-    recenterTo.current = p.heading
+    // the camera stays where the chase camera was (behind the car): turning it behind her would put it inside the car
+    recenterTo.current = null
     input.gas = false
     input.brake = false
     vehicle.model.setDriverVisible(false)

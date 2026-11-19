@@ -307,9 +307,9 @@ export function TouchControls() {
         <p
           data-testid="controls-hint"
           className="pointer-events-none absolute inset-x-0 mx-auto w-fit max-w-[60%] rounded-full bg-black/45 px-3 py-1.5 text-center text-xs text-white"
-          style={{ bottom: `calc(${floor} + 0.25rem)` }}
+          style={{ bottom: driving ? `calc(${floor} + 3.75rem)` : `calc(${floor} + 0.25rem)` }}
         >
-          {driving ? 'Left thumb: steer · Right thumb: Gas and Brake (Brake reverses) · Drag: look' : 'Left thumb: move · Right thumb: look · Pinch: zoom'}
+          {driving ? 'Left thumb: steer · Right thumb: Gas and Brake (Brake also reverses)' : 'Left thumb: move · Right thumb: look · Pinch: zoom'}
         </p>
       )}
 
