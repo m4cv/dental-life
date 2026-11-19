@@ -210,7 +210,7 @@ try {
   const atDoor = await route([[-171.5, -488.1]])
   check('along the corridor to the door of the Grand Hall', !!atDoor)
   await shoot('4-corridor-door')
-  const inHall = await route([[-171.5, -485.6], [-176.7, -485.4]])
+  const inHall = await route([[-171.5, -485.6], [-176.7, -484.95]], { tol: 0.2 })
   check('through the door and along the back aisle to the end of the first row', !!inHall && (await waitZone('hall1')), fmt4(inHall))
   const seatLabel = await label()
   check('the button offers "Attend: Periodontology 1"', seatLabel === 'Attend: Periodontology 1', `${seatLabel}`)
@@ -251,7 +251,7 @@ try {
   const w = await open('routine=done&day=wed&at=-147.5,-488.4,0')
   check('Wednesday: the clock says Wed', !!w && (await weekday()) === 'Wed')
   await shoot('8-signs-313')
-  const in313 = await route([[-147.5, -485.6], [-144.9, -485.4]])
+  const in313 = await route([[-147.5, -485.6], [-144.9, -484.95]], { tol: 0.2 })
   check('through the door of Hall 313 to the end of its first row', !!in313 && (await waitZone('hall2')), fmt4(in313))
   check('the button offers "Attend: Oral Medicine 1"', (await label()) === 'Attend: Oral Medicine 1')
   await btn().tap()
@@ -262,7 +262,7 @@ try {
 
   // ---- 4. Sunday: clinic only, nothing to attend ----
   console.log('\n--- 4. Sunday ---')
-  const s = await open('routine=done&day=sun&at=-176.7,-485.4,0')
+  const s = await open('routine=done&day=sun&at=-176.7,-484.95,0')
   check('Sunday: the clock says Sun', !!s && (await weekday()) === 'Sun')
   check('the Grand Hall seat is greyed out: no lectures in this hall today', (await label()) === 'Take a seat' && !(await btn().isEnabled()) && /No lectures in this hall today/.test((await p4.getByTestId('interact-note').innerText().catch(() => '')) || ''))
   await p4.getByTestId('class-hud').waitFor({ timeout: 8000 }).catch(() => {})
