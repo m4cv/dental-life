@@ -1,6 +1,7 @@
 // Builds the route of Stage 7 as merged meshes: Ninety Street north of the old end, the roundabout,
-// Al-Shaab Street with its rows of buildings, and the university's walled compound with the main
-// building, the gate, the sign and the forecourt. Three.js only; no React. Positions come from
+// Al-Shaab Street with its rows of buildings, and the university's walled compound with the gate, the
+// sign, the forecourt and the steps. (The main building, its inside and the courtyard are built by
+// university/buildCampus.ts since Stage 8.) Three.js only; no React. Positions come from
 // routeLayout.ts, the same data the physics uses.
 //
 // The route is long (about 450 m from end to end), so everything is built in chunks of about 110 m:
@@ -12,10 +13,11 @@ import { Batch, disposeGroup, type V3 } from '../home/sceneBuilder.ts'
 import { Y_PAINT, Y_ROAD, building, cx, cz, lamp, materials, palm, std, sx, sz, tex, type Mats } from '../street/buildStreet.ts'
 import { BOULEVARD, LAMP_R } from '../street/streetLayout.ts'
 import {
-  ISLAND, NORTH, NORTH_LAMPS, NORTH_PALMS, PLAZA, ROUTE_ASPHALT, ROUTE_LOTS, ROUTE_PAVING, SHAAB, SHAAB_LAMPS, SHAAB_PALMS, UNI, UNI_BLOCKS, UNI_BOOTH, UNI_BOOTH_H,
+  ISLAND, NORTH, NORTH_LAMPS, NORTH_PALMS, PLAZA, ROUTE_ASPHALT, ROUTE_LOTS, ROUTE_PAVING, SHAAB, SHAAB_LAMPS, SHAAB_PALMS, UNI, UNI_BOOTH, UNI_BOOTH_H,
   UNI_CANOPY, UNI_CANOPY_POLES, UNI_FLOOR, UNI_LAMPS, UNI_PALMS, UNI_PILLARS, UNI_SIGN, UNI_STEPS, UNI_WALLS,
 } from './routeLayout.ts'
-import { uniBayTexture, uniEntranceTexture, uniSignTexture } from './routeTextures.ts'
+import { UNI_STEP_WALLS } from '../university/uniLayout.ts'
+import { uniSignTexture } from './routeTextures.ts'
 
 export interface Route {
   group: Group
@@ -28,12 +30,8 @@ function routeMaterials() {
     sand: std('#cdbb94', 1),
     grass: std('#5d8a45', 1),
     kerb: std('#e2d8c0', 0.9),
-    uniGround: tex(uniBayTexture(true)),
-    uniUpper: tex(uniBayTexture(false)),
-    uniEntrance: tex(uniEntranceTexture(), 0.9),
     uniSign: tex(uniSignTexture(), 0.6),
     uniBlue: std('#2b4f98', 0.8),
-    uniBanner: std('#2a58b0', 0.9),
     uniStone: std('#e2d6b8', 0.9),
     carpet: std('#a82424', 0.95),
     door: std('#3a2a20', 0.7),
@@ -140,7 +138,7 @@ function props(c: Chunks, m: RouteMats): void {
 
 // ---------------------------------------------------------------------------------------------
 
-/** The compound: floor, wall, gate pillars and sign, the main building with its entrance, the booth, the canopy. */
+/** The compound's forecourt: floor, wall, gate pillars and sign, the booth, the canopy, the steps. */
 function university(c: Chunks, m: RouteMats): void {
   const b = c.at(UNI.arrival.x, UNI.arrival.z)
   b.plane(m.paving, sx(UNI_FLOOR), sz(UNI_FLOOR), [cx(UNI_FLOOR), -0.03, cz(UNI_FLOOR)], FLAT, [sx(UNI_FLOOR) / 2, sz(UNI_FLOOR) / 2])
@@ -177,39 +175,9 @@ function university(c: Chunks, m: RouteMats): void {
   for (const l of UNI_LAMPS) lamp(b, m, l.x, l.z)
   for (const p of UNI_PALMS) palm(b, m, p.x, p.z, p.h)
 
-  // the buildings
-  for (const blk of UNI_BLOCKS) {
-    const r = blk.rect
-    const w = sx(r)
-    const d = sz(r)
-    if (blk.id === 'entrance') {
-      // blue shoulders on both sides of a cream front with the grand arch
-      b.box(m.uniBlue, [w, blk.height, d], [cx(r), blk.height / 2, cz(r)])
-      const mid = 9.2
-      b.plane(m.uniEntrance, mid, blk.height, [cx(r), blk.height / 2, r.z1 + 0.03], [0, 0, 0])
-      b.box(m.uniStone, [w + 0.3, 0.6, d + 0.3], [cx(r), blk.height + 0.3, cz(r)])
-      continue
-    }
-    const upperH = blk.height - UNI.floorH
-    b.facadeBox(m.uniGround, [w, UNI.floorH, d], [cx(r), UNI.floorH / 2, cz(r)], 4.4, UNI.floorH)
-    b.facadeBox(m.uniUpper, [w, upperH, d], [cx(r), UNI.floorH + upperH / 2, cz(r)], 4.4, UNI.floorH)
-    b.box(m.uniStone, [w + 0.3, 0.7, d + 0.3], [cx(r), blk.height + 0.35, cz(r)])
-    // a few things on the roof: water tanks and a stair-room
-    if (blk.id === 'main') {
-      for (const dx of [-14, 14]) {
-        for (const [lx, lz] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]] as const) b.box(m.leg, [0.08, 0.35, 0.08], [cx(r) + dx + lx, blk.height + 0.7 + 0.175, cz(r) + lz])
-        b.cyl(m.tank, 0.7, 0.7, 1.3, [cx(r) + dx, blk.height + 0.7 + 0.35 + 0.65, cz(r)], 12)
-      }
-      b.box(m.uniStone, [3.2, 2.4, 3.2], [cx(r) + 8, blk.height + 0.7 + 1.2, cz(r) - 2])
-    }
-  }
-  // blue banners on both sides of the entrance
-  const main = UNI_BLOCKS[0].rect
-  for (const x of [cx(main) - 14.5, cx(main) - 11, cx(main) + 11, cx(main) + 14.5]) b.box(m.uniBanner, [1.3, 6.2, 0.06], [x, 9.6, main.z1 + 0.06], undefined, false)
-
-  // three steps up to the door, the red carpet running up the middle of them
+  // three steps up to the doorway, the red carpet running up the middle of them; she can walk up them (Stage 8)
   const sr = UNI_STEPS.rect
-  const treads = 3
+  const treads = UNI_STEPS.treads
   for (let i = 0; i < treads; i++) {
     const h = UNI_STEPS.h * ((treads - i) / treads)
     const z0 = sr.z0 + (i * sz(sr)) / treads
@@ -217,6 +185,8 @@ function university(c: Chunks, m: RouteMats): void {
     b.box(m.slab, [sx(sr), h, z1 - z0], [cx(sr), h / 2, (z0 + z1) / 2])
     b.box(m.carpet, [sx(UNI_STEPS.carpet), 0.03, z1 - z0], [cx(UNI_STEPS.carpet), h + 0.015, (z0 + z1) / 2], undefined, false)
   }
+  // a low wall along each side of the steps
+  for (const w of UNI_STEP_WALLS) b.box(m.slab, [sx(w), UNI_STEPS.h + 0.25, sz(w)], [cx(w), (UNI_STEPS.h + 0.25) / 2, cz(w)])
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -1173,7 +1173,7 @@ try {
   check('on foot she walks past the car towards the steps of the main entrance', !!onFoot && onFoot.z < -463, fmt4(onFoot))
   await pushToward(-163.8, -490, 3500, { settle: true })
   const door = await read4()
-  check('the entrance is closed (it opens in Stage 8): she stops at the foot of the steps', !!door && door.z > -472.4 && door.z < -468, fmt4(door))
+  check('beside the doorway the blue shoulder of the entrance stops her: she is on the top step, not inside (the doorway is 5 m wide, x -162.5 to -157.5)', !!door && door.z > -474.3 && door.z < -472 && door.x < -162.5, fmt4(door))
   await p4.waitForTimeout(1500)
   shots7.push(await p4.screenshot({ path: `${OUT}/s7-5-entrance.png` }))
 } catch (e) {
@@ -1181,6 +1181,105 @@ try {
 }
 await releaseAll6().catch(() => {})
 printJpeg('sheet7', (await contactSheet(shots7.filter(Boolean), 2, 560)).toString('base64'))
+
+// =============================================================================================
+console.log('\n--- Stage 8: the university (844×390) ---')
+// =============================================================================================
+const shots8 = []
+const footY = async () => Number(await p4.getByTestId('player-debug').getAttribute('data-y').catch(() => 'NaN'))
+const waitY = async (want, ms = 15000) => {
+  const t0 = Date.now()
+  let y = NaN
+  while (Date.now() - t0 < ms) {
+    y = await footY()
+    if (Math.abs(y - want) < 0.03) return true
+    await p4.waitForTimeout(250)
+  }
+  console.log(`info  foot height is ${y}, wanted ${want}`)
+  return false
+}
+const routeCard = () => p4.getByTestId('route-hud').count().catch(() => -1)
+const stand8 = async (name, shot) => {
+  await p4.waitForTimeout(1200)
+  if (shot) shots8.push(await p4.screenshot({ path: `${OUT}/s8-${name}.png` }))
+}
+try {
+  // ---- 1. up the steps and through the main entrance ----
+  const a8 = await openHome('?routine=done&at=-160,-466,180', '')
+  check('she can start in the forecourt in front of the steps, facing the entrance', !!a8 && Math.abs(a8.x + 160) < 0.5 && Math.abs(a8.z + 466) < 0.5, fmt4(a8))
+  check('on the forecourt her feet are on the ground (0)', await waitY(0, 8000))
+  await p4.locator('[data-testid="route-hud"][data-phase="arrived"]').waitFor({ timeout: 15000 }).catch(() => {})
+  check('the card says she has arrived and tells her to go up the steps and in through the main entrance', (await hud7('data-phase')) === 'arrived' && /main entrance/i.test((await p4.getByTestId('route-hud').innerText().catch(() => '')) || ''))
+  check('the chip says University', await waitZone('university', 8000))
+  shots8.push(await p4.screenshot({ path: `${OUT}/s8-1-forecourt.png` }))
+  const onSteps = await walkTo(-160, -471.5, { tol: 0.35, ms: 90000 })
+  check('she walks up to the first steps in the middle of the carpet', !!onSteps && onSteps.z < -470.5, fmt4(onSteps))
+  const top = await walkTo(-160, -473.6, { tol: 0.35, ms: 90000 })
+  check('and on up to the top step: she is not stopped by the steps', !!top && top.z < -473, fmt4(top))
+  check('on the top step her feet are 45 cm above the forecourt: she has climbed, not jumped through it', await waitY(0.45, 20000))
+  await stand8('2-steps', true)
+  const lobby0 = await walkTo(-160, -476.5, { tol: 0.4, ms: 90000 })
+  check('she walks through the doorway between the blue shoulders', !!lobby0 && lobby0.z < -476, fmt4(lobby0))
+  check('under the doorway the chip says University lobby', await waitZone('lobby', 8000))
+  check('the card is still there: she has not got into the building yet', (await routeCard()) === 1)
+  const lobby = await walkTo(-160, -481, { tol: 0.4, ms: 90000 })
+  check('and on into the lobby', !!lobby && lobby.z < -480, fmt4(lobby))
+  check('now the route card goes away: she is inside the main building', await p4.getByTestId('route-hud').waitFor({ state: 'detached', timeout: 15000 }).then(() => true).catch(() => false))
+  const welcome = await p4.getByTestId('toast').innerText({ timeout: 4000 }).catch(() => '')
+  console.log(`info  toast: "${(welcome || '').replace(/\n/g, ' ')}"`)
+  check('the floor inside is at 45 cm too', await waitY(0.45, 15000))
+  await stand8('3-lobby', true)
+
+  // ---- 2. the corridor and the first lecture hall ----
+  const corr = await walkTo(-160, -488.1, { tol: 0.4, ms: 90000 })
+  check('she walks north through the arch into the ground-floor corridor', !!corr && corr.z < -487, fmt4(corr))
+  check('the chip says Ground-floor corridor', await waitZone('corridor', 8000))
+  await stand8('4-corridor', true)
+  const h1door = await walkTo(-178.5, -488.1, { tol: 0.4, ms: 90000 })
+  check('along the corridor to the door of Lecture Hall 1', !!h1door && h1door.x < -178, fmt4(h1door))
+  const h1in = await walkTo(-178.5, -485.5, { tol: 0.4, ms: 90000 })
+  check('she walks in through the door', !!h1in && h1in.z > -486.2, fmt4(h1in))
+  check('the chip says Lecture Hall 1', await waitZone('hall1', 8000))
+  const h1aisle = await walkTo(-174.9, -481.5, { tol: 0.45, ms: 120000 })
+  check('she walks down the aisle between the desks towards the lecturer', !!h1aisle && h1aisle.z > -483, fmt4(h1aisle))
+  await stand8('5-hall1', true)
+  // she cannot push through the desks or the lecturer's lectern
+  await pushToward(-179, -481.3, 3000, { settle: true })
+  const desk = await read4()
+  check('the desks are solid: pushing west she stops against the end of the desk block (x about -176.1)', !!desk && desk.x > -176.6 && desk.x < -175.6, fmt4(desk))
+  await walkTo(-174.9, -485.5, { tol: 0.45, ms: 90000 })
+  const h1out = await walkTo(-171.5, -485.5, { tol: 0.4, ms: 90000 })
+  check('back behind the desks to the second door', !!h1out && h1out.x > -172.5, fmt4(h1out))
+  await walkTo(-171.5, -488.1, { tol: 0.4, ms: 90000 })
+
+  // ---- 3. the office, then the courtyard ----
+  const off0 = await walkTo(-141, -488.1, { tol: 0.3, slow: true, ms: 180000 })
+  check('along the corridor to the Student Affairs office', !!off0 && off0.x > -141.6, fmt4(off0))
+  await walkTo(-141, -485.6, { tol: 0.35, slow: true, ms: 90000 })
+  check('the chip says Student Affairs office', await waitZone('office', 8000))
+  await stand8('6-office', true)
+  await walkTo(-141, -488.1, { tol: 0.4, slow: true, ms: 90000 })
+  const cdoor = await walkTo(-160, -488.1, { tol: 0.4, ms: 150000 })
+  check('back along the corridor to the door of the courtyard', !!cdoor && Math.abs(cdoor.x + 160) < 1, fmt4(cdoor))
+  const yard = await walkTo(-160, -493, { tol: 0.5, ms: 90000 })
+  check('she walks out through the back door into the courtyard', !!yard && yard.z < -491.5, fmt4(yard))
+  check('the chip says University courtyard', await waitZone('courtyard', 8000))
+  check('the courtyard floor is at 45 cm as well', await waitY(0.45, 15000))
+  await stand8('7-courtyard-door', true)
+  const mid = await walkTo(-160, -506, { tol: 0.6, ms: 120000 })
+  check('she walks down the path between the two lawns', !!mid && mid.z < -504, fmt4(mid))
+  await stand8('8-courtyard', true)
+  const palm = await walkTo(-160, -513.6, { tol: 0.6, ms: 90000 })
+  check('as far as the palm in its round planter at the back', !!palm && palm.z < -512.5, fmt4(palm))
+  await pushToward(-160, -517, 3000, { settle: true })
+  const planter = await read4()
+  check('the planter is solid: she stops at its edge', !!planter && planter.z > -516.3 && planter.z < -514.5, fmt4(planter))
+  await stand8('9-palm', true)
+} catch (e) {
+  check('the Stage 8 walk through the university finished without an exception', false, String(e.message).split('\n')[0])
+}
+await releaseAll6().catch(() => {})
+printJpeg('sheet8', (await contactSheet(shots8.filter(Boolean), 2, 560)).toString('base64'))
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 

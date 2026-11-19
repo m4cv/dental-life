@@ -19,16 +19,17 @@ function useUnwrapped(deg: number): number {
 /**
  * The way to the university (Stage 7): an arrow that points along the route whichever way the camera looks,
  * the distance left along the road and what to do next. Only once the front door is open; after she arrives it
- * becomes a plain card saying so. Worked out from the 4 Hz position the rig publishes.
+ * becomes a plain card saying so, and it goes away once she is inside the main building (Stage 8). Worked out from the 4 Hz position the rig publishes.
  */
 export function RouteHud() {
   const doorOpen = useRoutineStore((s) => s.routine.doorOpen)
   const arrivedAt = useRouteStore((s) => s.arrivedAt)
+  const entered = useRouteStore((s) => s.enteredAt !== null)
   const x = usePlayerStore((s) => s.x)
   const z = usePlayerStore((s) => s.z)
   const camDeg = usePlayerStore((s) => s.camDeg)
   const arrow = useUnwrapped(Math.round(arrowDegrees(x, z, (camDeg * Math.PI) / 180)))
-  if (!doorOpen) return null
+  if (!doorOpen || entered) return null
   const style = { top: 'calc(max(env(safe-area-inset-top), 0.75rem) + 5rem)' }
   if (arrivedAt !== null) {
     return (
@@ -39,7 +40,7 @@ export function RouteHud() {
         style={style}
       >
         <p className="text-sm font-bold">You arrived at the university · {formatClock(arrivedAt)}</p>
-        <p className="opacity-80">The campus opens in the next stage.</p>
+        <p className="opacity-80">Walk up the steps and in through the main entrance.</p>
       </div>
     )
   }

@@ -43,6 +43,13 @@ export interface RigConfig {
   spawn: { x: number; z: number; heading: number }
   /** Height of the floor the character stands on. */
   groundY: number
+  /**
+   * Where the floor is higher or lower than groundY (steps, a raised floor): the height under (x, z). She rises and sinks
+   * to it with a quick ease, so a step is a small climb and not a jump; the camera follows her height. The car stays at groundY.
+   */
+  groundAt?: (x: number, z: number) => number
+  /** Called every frame with where the camera pivot is (her, or the car she drives): a scene can move a light with her. */
+  onFrame?: (x: number, z: number) => void
   bounds: Bounds
   /**
    * Read every frame, so a door can add or remove its collider while the game runs. Gets the
@@ -87,6 +94,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
   const group = useRef<Group>(null)
   const sun = useRef<DirectionalLight>(null)
   const speed = useRef(0)
+  /** The height of her feet: groundY, or what config.groundAt says, eased. */
+  const footY = useRef(config.groundAt ? config.groundAt(spawn.x, spawn.z) : groundY)
   const gesture = useRef<Gesture | null>(null)
   const player = useRef(createPlayer(spawn.x, spawn.z, spawn.heading))
   const cam = useRef(createCam(spawn.heading, config.camDist))
@@ -142,6 +151,7 @@ export function PlayerRig({ config }: { config: RigConfig }) {
     const p = player.current
     p.x = spot.x
     p.z = spot.z
+    footY.current = config.groundAt ? config.groundAt(p.x, p.z) : groundY
     p.vx = 0
     p.vz = 0
     p.speed = 0
@@ -303,14 +313,17 @@ export function PlayerRig({ config }: { config: RigConfig }) {
       stepPlayer(p, sx, sy, c.yaw, maxSpeed, delta, walkColliders, bounds)
       if (faceTo !== null) p.heading = turnToward(p.heading, faceTo, dt)
 
-      // ---- place the character ----
-      group.current?.position.set(p.x, groundY, p.z)
+      // ---- place the character (her feet ease to the floor under her: a step is a small climb) ----
+      const floor = config.groundAt ? config.groundAt(p.x, p.z) : groundY
+      footY.current = Math.abs(floor - footY.current) > 1 ? floor : footY.current + (floor - footY.current) * (1 - Math.exp(-18 * dt))
+      group.current?.position.set(p.x, footY.current, p.z)
       if (group.current) group.current.rotation.y = p.heading
       speed.current = p.speed
       if (vehicle && k) vehicle.model.place(k, dt)
     }
 
     // ---- sun follows what she is in or on, so shadows stay sharp wherever she goes ----
+    const baseY = isDriving ? groundY : footY.current
     const light = sun.current
     if (light) {
       const goal = config.sunAt ? config.sunAt(camX, camZ) : sunCfg
@@ -319,8 +332,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
       for (let i = 0; i < 3; i++) now.offset[i] += (goal.offset[i] - now.offset[i]) * kk
       now.intensity += (goal.intensity - now.intensity) * kk
       light.intensity = now.intensity
-      light.position.set(camX + now.offset[0], groundY + now.offset[1], camZ + now.offset[2])
-      light.target.position.set(camX, groundY, camZ)
+      light.position.set(camX + now.offset[0], baseY + now.offset[1], camZ + now.offset[2])
+      light.target.position.set(camX, baseY, camZ)
       light.target.updateMatrixWorld()
     }
 
@@ -334,7 +347,8 @@ export function PlayerRig({ config }: { config: RigConfig }) {
       if (d < 12) travelled.current += d
     }
     lastBody.current = [fx, fz]
-    const pivot: [number, number, number] = [fx, groundY + (isDriving ? DRIVE_CAM.pivotY : CAM.pivotY), fz]
+    const pivot: [number, number, number] = [fx, baseY + (isDriving ? DRIVE_CAM.pivotY : CAM.pivotY), fz]
+    config.onFrame?.(fx, fz)
     const ceiling = typeof ceilingY === 'function' ? ceilingY(fx, fz) : ceilingY
     let pitch = c.pitch
     let wantedArm: number
@@ -368,10 +382,10 @@ export function PlayerRig({ config }: { config: RigConfig }) {
       travelled.current = 0
       const deg = Math.round(((c.yaw * 180) / Math.PI + 360) % 360)
       if (isDriving && k) {
-        usePlayerStore.setState({ x: k.x, z: k.z, speed: Math.abs(k.speed), camDeg: deg, camDist: c.dist })
+        usePlayerStore.setState({ x: k.x, z: k.z, y: groundY, speed: Math.abs(k.speed), camDeg: deg, camDist: c.dist })
         useDriveStore.setState({ kmh: Math.round(Math.abs(k.speed) * 3.6), gear: k.speed < -0.1 ? 'R' : 'D' })
       } else {
-        usePlayerStore.setState({ x: p.x, z: p.z, speed: p.speed, camDeg: deg, camDist: c.dist })
+        usePlayerStore.setState({ x: p.x, z: p.z, y: footY.current, speed: p.speed, camDeg: deg, camDist: c.dist })
       }
     }
   })

@@ -1,7 +1,7 @@
 {
   "name": "dental-life",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Dental Life — a mobile-first 3D life simulation of a fourth-year dental student in Yemen.",
   "type": "module",
   "engines": {
@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "smoke": "node scripts/smoke-test.mjs",
-    "test": "node scripts/test-pose.mjs && node scripts/test-shapes.mjs && node scripts/test-controls.mjs && node scripts/test-home.mjs && node scripts/test-street.mjs && node scripts/test-car.mjs && node scripts/test-route.mjs"
+    "test": "node scripts/test-pose.mjs && node scripts/test-shapes.mjs && node scripts/test-controls.mjs && node scripts/test-home.mjs && node scripts/test-street.mjs && node scripts/test-car.mjs && node scripts/test-route.mjs && node scripts/test-campus.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.0",

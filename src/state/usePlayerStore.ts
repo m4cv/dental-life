@@ -5,6 +5,8 @@ interface PlayerReadout {
   active: boolean
   x: number
   z: number
+  /** The height of her feet above the street (0, up to 0.45 on the university's steps and floor). */
+  y: number
   speed: number
   /** Camera heading in degrees, 0–359. */
   camDeg: number
@@ -13,4 +15,4 @@ interface PlayerReadout {
 }
 
 /** Low-rate read-out of the player for the diagnostics panel and the CI tests. */
-export const usePlayerStore = create<PlayerReadout>()(() => ({ active: false, x: 0, z: 0, speed: 0, camDeg: 0, camDist: 0 }))
+export const usePlayerStore = create<PlayerReadout>()(() => ({ active: false, x: 0, z: 0, y: 0, speed: 0, camDeg: 0, camDist: 0 }))

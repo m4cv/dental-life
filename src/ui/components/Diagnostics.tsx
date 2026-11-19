@@ -23,7 +23,7 @@ export function Diagnostics() {
         WebGL 2 · DPR {deviceDpr.toFixed(1)}→{renderDpr.toFixed(1)}
       </div>
       {player.active && (
-        <div data-testid="player-debug">
+        <div data-testid="player-debug" data-y={player.y.toFixed(2)}>
           <div>
             x {player.x.toFixed(1)} z {player.z.toFixed(1)} · {player.speed.toFixed(1)} m/s
           </div>

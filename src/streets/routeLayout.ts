@@ -22,6 +22,7 @@ import {
   type Lot, type Rect, type Row, type ZoneId,
 } from '../street/streetLayout.ts'
 import { HOME_COLLIDERS } from '../home/homeLayout.ts'
+import { UNI, UNI_CAMERA_COLLIDERS, UNI_CAR_COLLIDERS, UNI_COLLIDERS, campusZoneAt } from '../university/uniLayout.ts'
 
 const R = (x0: number, x1: number, z0: number, z1: number): Rect => ({ x0, x1, z0, z1 })
 
@@ -75,64 +76,13 @@ export const SHAAB = {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The university's compound, on the north side of Al-Shaab Street.
+// The university's compound, on the north side of Al-Shaab Street: its data lives in university/uniLayout.ts
+// (Stage 8 made the ground floor of the main building and the courtyard behind it walkable).
 // ---------------------------------------------------------------------------------------------
 
-export const UNI = {
-  compound: R(-200, -120, -495, -431),
-  /** The gate: an opening in the front wall, with a pillar on each side. */
-  gate: { x0: -164.5, x1: -155.5, cx: -160 },
-  wallT: 0.3,
-  wallH: 2.4,
-  floorH: 4.2,
-  /** Where she stands when she arrives: in the forecourt, facing the entrance. */
-  arrival: { x: -160, z: -452 },
-}
-
-export interface UniBlock {
-  id: string
-  rect: Rect
-  floors: number
-  height: number
-}
-const FL = UNI.floorH
-export const UNI_BLOCKS: UniBlock[] = [
-  { id: 'main', rect: R(-182, -138, -490, -478), floors: 4, height: 4 * FL },
-  { id: 'wing-w', rect: R(-198, -182, -490, -480), floors: 2, height: 2 * FL },
-  { id: 'wing-e', rect: R(-138, -122, -490, -480), floors: 2, height: 2 * FL },
-  // the entrance projects four metres towards the street and is a little taller than the rest
-  { id: 'entrance', rect: R(-168, -152, -478, -474), floors: 4, height: 4 * FL + 1.4 },
-]
-/** Three steps up to the entrance; the red carpet runs up the middle. The door itself opens in Stage 8. */
-export const UNI_STEPS = { rect: R(-165, -155, -474, -471), h: 0.45, carpet: R(-161.2, -158.8, -474, -471) }
-export const UNI_BOOTH = R(-153.8, -151, -437.6, -434.8)
-export const UNI_BOOTH_H = 2.6
-export const UNI_CANOPY = { rect: R(-197, -177, -463, -447), h: 3.1 }
-export const UNI_CANOPY_POLES: { x: number; z: number }[] = [
-  { x: -196, z: -462 }, { x: -186.5, z: -462 }, { x: -178, z: -462 },
-  { x: -196, z: -448 }, { x: -186.5, z: -448 }, { x: -178, z: -448 },
-]
-export const UNI_PALMS: { x: number; z: number; h: number }[] = [
-  { x: -173, z: -458, h: 6 }, { x: -147, z: -458, h: 6.4 }, { x: -173, z: -468, h: 5.6 }, { x: -147, z: -468, h: 6 },
-  { x: -193, z: -437, h: 5.2 }, { x: -127, z: -437, h: 5.6 },
-]
-export const UNI_LAMPS: { x: number; z: number }[] = [{ x: -176, z: -440 }, { x: -144, z: -440 }, { x: -176, z: -474 }, { x: -144, z: -474 }]
-
-/** The compound's wall: front (two pieces, the gate between), both sides and the back. */
-export const UNI_WALLS: Rect[] = (() => {
-  const c = UNI.compound
-  const t = UNI.wallT
-  return [
-    R(c.x0 + t, UNI.gate.x0, c.z1 - t, c.z1),
-    R(UNI.gate.x1, c.x1 - t, c.z1 - t, c.z1),
-    R(c.x0, c.x0 + t, c.z0, c.z1),
-    R(c.x1 - t, c.x1, c.z0, c.z1),
-    R(c.x0 + t, c.x1 - t, c.z0, c.z0 + t),
-  ]
-})()
-/** The pillars on each side of the gate carry the sign over it. */
-export const UNI_PILLARS: Rect[] = [R(-165.5, UNI.gate.x0, -431.7, -430.7), R(UNI.gate.x1, -154.5, -431.7, -430.7)]
-export const UNI_SIGN = { y0: 4.9, y1: 6.3, x0: -165.5, x1: -154.5, z: -431.2 }
+export {
+  UNI, UNI_BLOCKS, UNI_BOOTH, UNI_BOOTH_H, UNI_CANOPY, UNI_CANOPY_POLES, UNI_FLOOR, UNI_LAMPS, UNI_PALMS, UNI_PILLARS, UNI_SIGN, UNI_STEPS, UNI_WALLS,
+} from '../university/uniLayout.ts'
 
 // ---------------------------------------------------------------------------------------------
 // Roads
@@ -158,9 +108,6 @@ export const ROUTE_PAVING: Rect[] = [
   R(SHAAB.x0, SHAAB.x1, SHAAB.pavN[0], SHAAB.pavN[1]),
   R(SHAAB.x0, SHAAB.x1, SHAAB.pavS[0], SHAAB.pavS[1]),
 ]
-
-/** The paved floor of the compound. */
-export const UNI_FLOOR = R(UNI.compound.x0, UNI.compound.x1, UNI.compound.z0, UNI.compound.z1)
 
 // ---------------------------------------------------------------------------------------------
 // Buildings: rows of lots, split with a fixed seed so the route is always the same.
@@ -234,7 +181,7 @@ for (let x = 30; x > SHAAB.x0 + 8; x -= 36) if (x < UNI.gate.x0 - 12 || x > UNI.
 // ---------------------------------------------------------------------------------------------
 
 /** The playable area: the neighbourhood of Stage 5 plus the route north and west. */
-export const ROUTE_BOUNDS: Bounds = { minX: -256, maxX: 124, minZ: -500, maxZ: 33.2 }
+export const ROUTE_BOUNDS: Bounds = { minX: -256, maxX: 124, minZ: -552, maxZ: 33.2 }
 
 const box = (r: Rect, height: number): Collider => ({
   kind: 'box',
@@ -247,14 +194,7 @@ const box = (r: Rect, height: number): Collider => ({
 
 export const ROUTE_COLLIDERS: Collider[] = [
   ...ROUTE_LOTS.map((l) => box(l.rect, l.height + PARAPET_H)),
-  ...UNI_BLOCKS.map((b) => box(b.rect, b.height + 1)),
-  box(UNI_STEPS.rect, UNI_STEPS.h),
-  box(UNI_BOOTH, UNI_BOOTH_H),
-  ...UNI_WALLS.map((w) => box(w, UNI.wallH)),
-  ...UNI_PILLARS.map((p) => box(p, UNI_SIGN.y1)),
-  ...UNI_CANOPY_POLES.map((p): Collider => ({ kind: 'circle', x: p.x, z: p.z, r: 0.16, height: UNI_CANOPY.h })),
-  ...UNI_PALMS.map((p): Collider => ({ kind: 'circle', x: p.x, z: p.z, r: PALM_R, height: p.h })),
-  ...UNI_LAMPS.map((p): Collider => ({ kind: 'circle', x: p.x, z: p.z, r: LAMP_R, height: 6.5 })),
+  ...UNI_COLLIDERS,
   { kind: 'circle', x: ISLAND.x, z: ISLAND.z, r: ISLAND.r, height: 1.2 },
   ...NORTH_LAMPS.map((l): Collider => ({ kind: 'circle', x: l.x, z: l.z, r: LAMP_R, height: 6.5 })),
   ...NORTH_PALMS.map((p): Collider => ({ kind: 'circle', x: p.x, z: p.z, r: PALM_R, height: p.h })),
@@ -262,7 +202,12 @@ export const ROUTE_COLLIDERS: Collider[] = [
   ...SHAAB_LAMPS.map((l): Collider => ({ kind: 'circle', x: l.x, z: l.z, r: LAMP_R, height: 6.5 })),
 ]
 
-/** Everything she or the car can bump into, from the bedroom to the university's steps. */
+/** What only the camera must keep out of: the upper floors of the university over its hollow ground floor. */
+export const ROUTE_CAMERA_COLLIDERS: Collider[] = UNI_CAMERA_COLLIDERS
+/** What only the car bumps into: the steps, which she can walk up but a car cannot. */
+export const ROUTE_CAR_COLLIDERS: Collider[] = UNI_CAR_COLLIDERS
+
+/** Everything she or the car can bump into, from the bedroom to the university's courtyard. */
 export const WORLD_COLLIDERS: Collider[] = [...HOME_COLLIDERS, ...STREET_COLLIDERS, ...ROUTE_COLLIDERS]
 
 // ---------------------------------------------------------------------------------------------
@@ -273,6 +218,8 @@ const inRect = (r: Rect, x: number, z: number) => x >= r.x0 && x <= r.x1 && z >=
 
 /** Zone names for the HUD: the route's places first, then the neighbourhood's (street/streetLayout.ts). */
 export function worldZoneAt(x: number, z: number): ZoneId {
+  const campus = campusZoneAt(x, z)
+  if (campus) return campus
   if (inRect(UNI.compound, x, z)) return 'university'
   if (inRect(PLAZA, x, z)) return 'junction'
   if (x >= SHAAB.x0 && x <= SHAAB.x1 && z >= SHAAB.pavN[0] && z <= SHAAB.pavS[1]) return 'shaab'

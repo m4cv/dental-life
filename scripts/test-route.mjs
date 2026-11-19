@@ -10,6 +10,7 @@ import {
   ROUTE_PAVING, ROUTE_STEPS, SHAAB, SHAAB_LAMPS, SHAAB_PALMS, SIDE_STREETS, UNI, UNI_BLOCKS, UNI_BOOTH, UNI_CANOPY_POLES, UNI_LAMPS, UNI_PALMS, UNI_PILLARS, UNI_STEPS, UNI_WALLS,
   WORLD_COLLIDERS, arrowDegrees, atUniversity, instructionAt, minutesFor, projectOnRoute, remainingFrom, routePoint, worldZoneAt,
 } from '../src/streets/routeLayout.ts'
+import { UNI_MAIN, UNI_MAIN_UPPER, UNI_VESTIBULE } from '../src/university/uniLayout.ts'
 import { LAGGED, driveRoute } from './route-pilot.mjs'
 
 let failures = 0
@@ -71,12 +72,12 @@ check('the university blocks do not overlap each other, the steps, the booth or 
 })())
 check('every university block, the steps and the booth lie inside the compound', [...UNI_BLOCKS.map((b) => b.rect), UNI_STEPS.rect, UNI_BOOTH].every((r) => r.x0 >= UNI.compound.x0 && r.x1 <= UNI.compound.x1 && r.z0 >= UNI.compound.z0 && r.z1 <= UNI.compound.z1))
 check('the main building is four floors, the entrance projects four metres and is in the middle, the door faces the street', (() => {
-  const main = UNI_BLOCKS.find((b) => b.id === 'main')
-  const ent = UNI_BLOCKS.find((b) => b.id === 'entrance')
-  return main.floors === 4 && ent.rect.z1 === main.rect.z1 + 4 && Math.abs((ent.rect.x0 + ent.rect.x1) / 2 - UNI.gate.cx) < 1e-9 && Math.abs((main.rect.x0 + main.rect.x1) / 2 - UNI.gate.cx) < 1e-9 && UNI_STEPS.rect.z0 === ent.rect.z1
+  // since Stage 8 the main building is hollow on the ground floor: its footprint is UNI_MAIN and the entrance is the doorway between two shoulders
+  const sh = UNI_BLOCKS.filter((b) => b.id.startsWith('shoulder'))
+  return UNI_MAIN_UPPER.y1 === 4 * UNI.floorH && sh.length === 2 && sh.every((b) => b.rect.z0 === UNI_VESTIBULE.z0 && b.rect.z1 === UNI_VESTIBULE.z1) && UNI_VESTIBULE.z1 === UNI_MAIN.z1 + 4 && Math.abs((UNI_VESTIBULE.x0 + UNI_VESTIBULE.x1) / 2 - UNI.gate.cx) < 1e-9 && Math.abs((UNI_MAIN.x0 + UNI_MAIN.x1) / 2 - UNI.gate.cx) < 1e-9 && UNI_STEPS.rect.z0 === UNI_VESTIBULE.z1
 })())
 check('the gate is 9 m wide and in line with the entrance, the steps and the arrival spot', UNI.gate.x1 - UNI.gate.x0 === 9 && Math.abs((UNI.gate.x0 + UNI.gate.x1) / 2 - UNI.gate.cx) < 1e-9 && UNI.arrival.x === UNI.gate.cx && UNI.arrival.z > UNI_STEPS.rect.z1 && UNI.arrival.z < UNI.compound.z1)
-check('the gate opens on the pavement of Al-Shaab Street: the compound meets it', UNI.compound.z1 === SHAAB.pavN[0] && UNI.compound.z0 > -500)
+check('the gate opens on the pavement of Al-Shaab Street: the compound meets it', UNI.compound.z1 === SHAAB.pavN[0] && UNI.compound.z0 >= ROUTE_BOUNDS.minZ)
 
 // ---- props -------------------------------------------------------------------------------------------
 check('median lamps and palms go on alternately down the middle of Ninety Street, 9 m apart, as at the old end', (() => {
@@ -159,7 +160,7 @@ check('the HUD distance counts down along the route: it is the whole route at th
 }
 
 // ---- zones and the clock -----------------------------------------------------------------------------------
-check('zones: the place chip names the neighbourhood, the roundabout, Al-Shaab Street and the university', worldZoneAt(2.5, 0.15) === 'home' && worldZoneAt(20, 7.6) === 'lane' && worldZoneAt(79, -100) === 'boulevard' && worldZoneAt(79, -420) === 'junction' && worldZoneAt(-100, -420) === 'shaab' && worldZoneAt(-160, -450) === 'university' && worldZoneAt(50, -245) === 'lane' && Object.values(ZONE_NAMES).length === 7)
+check('zones: the place chip names the neighbourhood, the roundabout, Al-Shaab Street, the university, its lobby and its courtyard', worldZoneAt(2.5, 0.15) === 'home' && worldZoneAt(20, 7.6) === 'lane' && worldZoneAt(79, -100) === 'boulevard' && worldZoneAt(79, -420) === 'junction' && worldZoneAt(-100, -420) === 'shaab' && worldZoneAt(-160, -450) === 'university' && worldZoneAt(50, -245) === 'lane' && Object.values(ZONE_NAMES).length === 13 && worldZoneAt(-160, -482) === 'lobby' && worldZoneAt(-160, -520) === 'courtyard')
 check('arrival: inside the compound counts, the pavement outside the gate does not', atUniversity(-160, -440) && atUniversity(-190, -480) && !atUniversity(-160, -430) && !atUniversity(-160, -424) && !atUniversity(-100, -450))
 check('clock: nothing passes at home or in the yard, a game minute for 41.7 m elsewhere', minutesFor(10, 2.5, -3) === 0 && minutesFor(10, 4, -5) === 0 && Math.abs(minutesFor(41.7, 79, -100) - 1) < 0.01 && CLOCK_MIN_PER_M === 0.024)
 check('clock: the whole drive takes about 19 game minutes (arriving at about 07:19)', (() => { const m = ROUTE_LENGTH * CLOCK_MIN_PER_M; check.arrive = clock(7 * 60 + m); return m > 15 && m < 25 })(), `${f1(ROUTE_LENGTH * CLOCK_MIN_PER_M)} min, arrive ${check.arrive}`)
