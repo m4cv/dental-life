@@ -68,6 +68,9 @@ main.tsx → App ──(screen = menu)──▶ MainMenu
   blinking and breathing. `advancePhase` advances the gait cycle.
 * `charShapes.ts` — pure shape data (coat rings, hijab shell/drape, decals, strap). `assets.ts` turns
   it into three.js geometry/materials once and shares them. `PlayerCharacter.tsx` assembles the rig.
+* **Face:** the eyes are 3D (eyeball, textured iris cap, glints, a morph-driven eyelid that rests over the
+  top of the iris and closes on blink, tapered eyeliner). Blush, eyeshadow, brows and lips are painted on a thin
+  skin-shaped sheet (`facePatchMesh` + `faceTexture` in `assets.ts`). Eye and face proportions are in `charShapes.ts` (`EYE`, `FACE_PATCH`).
 * Controllers (Stage 3) only need `<PlayerCharacter speed={…} position={…} rotationY={…} />`.
 * `npm test` runs `scripts/test-pose.mjs` and `scripts/test-shapes.mjs` on plain Node.
 * Colours come from the reference photos; **trousers and shoes are not visible in them** and are a
