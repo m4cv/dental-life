@@ -42,6 +42,8 @@ jobs:
       - run: npm install
       - run: npm run build
       - name: Lectures browser test (real WebGL)
+        env:
+          LEC_DIAG: ${{ contains(github.event.head_commit.message, '[diag]') && '1' || '' }}
         run: |
           npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
           node scripts/smoke-lectures.mjs

@@ -160,6 +160,19 @@ const waitToast = async (re, ms = 40000) => {
   }
 }
 
+// A quick look at the seat (set LEC_DIAG=1, or put [diag] in the commit message): starts beside the seat and reports what the screen offers.
+if (process.env.LEC_DIAG) {
+  const d = await open('routine=done&day=sat&at=-176.7,-484.95,0')
+  await p4.waitForTimeout(4000)
+  console.log(`info  diag: at ${fmt4(d)} now ${fmt4(await read4())}, zone ${await zone()}`)
+  console.log(`info  diag: interact buttons ${await p4.getByTestId('btn-interact').count()}, label ${await label()}`)
+  console.log(`info  diag: screen text ${JSON.stringify(((await p4.evaluate(() => document.body.innerText)) || '').replace(/\s+/g, ' ').slice(0, 600))}`)
+  await shoot('diag-seat')
+  printJpeg('diag', (await contactSheet(shots, 1, 844)).toString('base64'))
+  await browser.close()
+  process.exit(0)
+}
+
 try {
   // ---- 1. the menu: day chips; the weekday on the clock ----
   console.log('\n--- 1. the day chips and the timetable ---')
