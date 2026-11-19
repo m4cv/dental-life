@@ -25,7 +25,7 @@ export default function GameScreen() {
       <div className="hud-top-safe pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2">
         <button
           type="button"
-          className="btn-hud pointer-events-auto"
+          className="btn-hud pointer-events-auto shrink-0 whitespace-nowrap"
           aria-label="Back to main menu"
           onClick={returnToMenu}
         >

@@ -254,6 +254,27 @@ export function coatMesh(yMin: number, yMax: number, cols = 48): MeshData {
   return { ...mesh, normals }
 }
 
+/**
+ * Tucks the end of a coat piece slightly inwards. The coat is built from two pieces (torso and a
+ * hem that swings at the hips); where they meet, each piece continues a few centimetres past the
+ * seam, a little smaller, so it nests inside the other. When the hem tilts there is then fabric
+ * behind the gap instead of a dark hole. `dir` = -1 shrinks the part below `edgeY`, +1 above it.
+ */
+export function tuckCoatMesh(mesh: MeshData, edgeY: number, dir: 1 | -1, depth: number, shrink: number): MeshData {
+  const positions = mesh.positions.slice()
+  for (let k = 0; k < positions.length; k += 3) {
+    const y = positions[k + 1]
+    const d = dir * (y - edgeY)
+    if (d <= 0) continue
+    const t = Math.min(d / depth, 1)
+    const s = 1 - shrink * t * t * (3 - 2 * t)
+    const cz = coatRing(y).cz
+    positions[k] *= s
+    positions[k + 2] = cz + (positions[k + 2] - cz) * s
+  }
+  return { ...mesh, positions }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Hijab
 // ---------------------------------------------------------------------------------------------

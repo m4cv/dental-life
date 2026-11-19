@@ -251,7 +251,7 @@ const readDebug = async () => {
   const el = p3.getByTestId('player-debug')
   if ((await el.count()) === 0) return null
   const text = await el.innerText()
-  const m = text.match(/x (-?[\d.]+) z (-?[\d.]+) · ([\d.]+) m\/s · cam (\d+)° ([\d.]+) m/)
+  const m = text.match(/x (-?[\d.]+) z (-?[\d.]+) · ([\d.]+) m\/s\s+cam (\d+)° ([\d.]+) m/)
   return m ? { x: +m[1], z: +m[2], speed: +m[3], cam: +m[4], dist: +m[5], text } : null
 }
 const until = async (pred, ms) => {

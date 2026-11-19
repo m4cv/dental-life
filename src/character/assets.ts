@@ -43,6 +43,7 @@ import {
   skinZ,
   strapPath,
   taperTubeMesh,
+  tuckCoatMesh,
   type MeshData,
   type Vec3,
 } from './charShapes'
@@ -92,6 +93,9 @@ export function toGeometry(m: MeshData): BufferGeometry {
  * at the waist, so the hem can open up when running without a step where it meets the torso.
  * Morph influence 1 = full flare (1 + SKIRT_FLARE_MAX at the hem).
  */
+/** How far each coat piece continues past the torso/hem seam (metres). */
+const SEAM_NEST = 0.09
+
 function withFlareMorph(g: BufferGeometry): BufferGeometry {
   const pos = g.getAttribute('position')
   const out = new Float32Array(pos.count * 3)
@@ -471,8 +475,11 @@ function buildAssets() {
   const geo = {
     unitSphere: new SphereGeometry(1, 32, 20),
     unitSphereLo: new SphereGeometry(1, 16, 10),
-    coatTorso: toGeometry(coatMesh(COAT_SPLIT_Y, COAT_COLLAR_Y)),
-    coatSkirt: withFlareMorph(toGeometry(coatMesh(COAT_HEM_Y, COAT_SPLIT_Y))),
+    // both pieces continue past the seam, a little smaller, so the swinging hem never shows a hole
+    coatTorso: toGeometry(tuckCoatMesh(coatMesh(COAT_SPLIT_Y - SEAM_NEST, COAT_COLLAR_Y), COAT_SPLIT_Y, -1, SEAM_NEST, 0.045)),
+    coatSkirt: withFlareMorph(
+      toGeometry(tuckCoatMesh(coatMesh(COAT_HEM_Y, COAT_SPLIT_Y + SEAM_NEST), COAT_SPLIT_Y, 1, SEAM_NEST, 0.045)),
+    ),
     hijabShell: toGeometry(hijabShellMesh()),
     hijabDrape: toGeometry(hijabDrapeMesh()),
     hijabRim: tube(rim, 0.0062, true, 64),

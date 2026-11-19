@@ -42,7 +42,12 @@ export function Diagnostics() {
       </div>
       {player.active && (
         <div data-testid="player-debug">
-          x {player.x.toFixed(1)} z {player.z.toFixed(1)} · {player.speed.toFixed(1)} m/s · cam {player.camDeg}° {player.camDist.toFixed(1)} m
+          <div>
+            x {player.x.toFixed(1)} z {player.z.toFixed(1)} · {player.speed.toFixed(1)} m/s
+          </div>
+          <div>
+            cam {player.camDeg}° {player.camDist.toFixed(1)} m
+          </div>
         </div>
       )}
     </div>

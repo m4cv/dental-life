@@ -2,7 +2,7 @@
 import {
   HEAD, COAT_RINGS, COAT_SPLIT_Y, coatMesh, coatImplicit, coatFrontZ, hijabShellMesh, hijabDrapeMesh,
   drapeRing, drapeHem, decalMesh, rectPoly, LAPEL_POLY, V_NECK_POLY, mirrorPoly, strapPath, ribbonMesh, coatNormal,
-  skinZ, shellZ, eyeLidMesh, EYE, FACE_PATCH, eyePoint, lashLine, irisCapMesh, taperTubeMesh, facePatchMesh,
+  skinZ, shellZ, tuckCoatMesh, coatRing, eyeLidMesh, EYE, FACE_PATCH, eyePoint, lashLine, irisCapMesh, taperTubeMesh, facePatchMesh,
 } from '../src/character/charShapes.ts'
 
 let failures = 0
@@ -189,6 +189,45 @@ check('skin sits inside the shell at the rim', skinZ(0.04, 0.05) < shellZ(0.04, 
   let unit = true
   for (let i = 0; i < tube.normals.length; i += 3) if (Math.abs(Math.hypot(tube.normals[i], tube.normals[i + 1], tube.normals[i + 2]) - 1) > 1e-6) unit = false
   check('eyeliner normals are unit length', unit)
+}
+{
+  const NEST = 0.09
+  const torso = tuckCoatMesh(coatMesh(COAT_SPLIT_Y - NEST, 1.412), COAT_SPLIT_Y, -1, NEST, 0.045)
+  const hem = tuckCoatMesh(coatMesh(0, COAT_SPLIT_Y + NEST), COAT_SPLIT_Y, 1, NEST, 0.045)
+  const inside = (m, pred) => {
+    let ok = true, worst = 0
+    for (let i = 0; i < m.positions.length; i += 3) {
+      const [x, y, z] = m.positions.slice(i, i + 3)
+      if (!pred(y)) continue
+      const e = coatImplicit(x, y, z)
+      worst = Math.max(worst, e)
+      if (e > 1.0001) ok = false
+    }
+    return [ok, worst]
+  }
+  const [tOk] = inside(torso, (y) => y < COAT_SPLIT_Y - 1e-6)
+  const [hOk] = inside(hem, (y) => y > COAT_SPLIT_Y + 1e-6)
+  check('torso continues below the seam, tucked inside the coat surface', tOk)
+  check('hem continues above the seam, tucked inside the coat surface', hOk)
+  {
+    const base = coatMesh(COAT_SPLIT_Y - NEST, COAT_SPLIT_Y + 0.05)
+    const tucked = tuckCoatMesh(base, COAT_SPLIT_Y, -1, NEST, 0.045)
+    let seamDiff = 0, minRatio = 1, ordered = true, lastY = -1, lastRatio = 0
+    for (let i = 0; i < base.positions.length; i += 3) {
+      const y = base.positions[i + 1]
+      const ratio = Math.hypot(tucked.positions[i], tucked.positions[i + 2] - coatRing(y).cz) / (Math.hypot(base.positions[i], base.positions[i + 2] - coatRing(y).cz) || 1)
+      if (y >= COAT_SPLIT_Y - 1e-9) seamDiff = Math.max(seamDiff, Math.abs(ratio - 1))
+      minRatio = Math.min(minRatio, ratio)
+      if (y > lastY + 1e-9 && y <= COAT_SPLIT_Y && Math.abs(base.positions[i]) < 1e-9 && base.positions[i + 2] > 0) {
+        if (lastY >= 0 && ratio < lastRatio - 1e-9) ordered = false
+        lastY = y
+        lastRatio = ratio
+      }
+    }
+    check('pieces are untouched at and above the seam (no step where they meet)', seamDiff < 1e-9, `${seamDiff.toExponential(1)}`)
+    check('the tuck shrinks by exactly 4.5 % at the far end and never more', Math.abs(minRatio - 0.955) < 1e-6, `${((1 - minRatio) * 100).toFixed(2)} %`)
+    check('the tuck grows smoothly away from the seam', ordered)
+  }
 }
 {
   const { mesh: lid, rest } = eyeLidMesh()
