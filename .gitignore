@@ -6,3 +6,7 @@ dist
 reference/
 .DS_Store
 npm-debug.log*
+
+# CI smoke-test output
+smoke-output/
+preview.log

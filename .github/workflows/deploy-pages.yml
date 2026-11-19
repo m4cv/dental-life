@@ -32,6 +32,21 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+      # Opens the production build in headless Chrome (software WebGL) and checks that the real
+      # three.js scene renders. Screenshots are uploaded as an artifact. It does not block deploys.
+      - name: Render smoke test (real WebGL)
+        continue-on-error: true
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          node scripts/smoke-test.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshots
+          path: smoke-output/
+          if-no-files-found: ignore
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
