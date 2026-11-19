@@ -147,7 +147,8 @@ export function ClassHud() {
   const arrow = useUnwrapped(guide ? Math.round(bearingDegrees(x, z, guide.aim, (camDeg * Math.PI) / 180)) : 0)
   const zone = worldZoneAt(x, z)
   if (!entered || pending || !CAMPUS_ZONES.has(zone)) return null
-  const style = { top: 'calc(max(env(safe-area-inset-top), 0.75rem) + 2.75rem)' }
+  // below the toast (which shows for a few seconds at the top), like the route card
+  const style = { top: 'calc(max(env(safe-area-inset-top), 0.75rem) + 4.75rem)' }
   if (!next || !guide) {
     const left = sessionsFor(day).filter((s) => s.kind !== 'lecture').length
     return (

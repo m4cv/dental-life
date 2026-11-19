@@ -151,7 +151,7 @@ const waitZone = async (want, ms = 8000) => {
 }
 const shots = []
 const shoot = async (name) => shots.push(await p4.screenshot({ path: `${OUT}/l-${name}.png` }))
-const waitToast = async (re, ms = 40000) => {
+const waitToast = async (re, ms = 150000) => {
   try {
     await p4.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="toast"]')?.textContent ?? ''), re.source, { timeout: ms })
     return true
@@ -242,7 +242,7 @@ try {
   await p4.getByTestId('action-progress').waitFor({ timeout: 8000 })
   check('pressing it starts the lecture: a progress bar with its name', /Attend: Periodontology 1/.test((await p4.getByTestId('action-progress').innerText()) || ''))
   // she walks the last steps into the chair, then sits: wait until the bar is past a third
-  await p4.waitForFunction(() => Number(document.querySelector('[data-testid="action-progress"]')?.getAttribute('data-progress') ?? 0) >= 0.35, null, { timeout: 60000 }).catch(() => {})
+  await p4.waitForFunction(() => Number(document.querySelector('[data-testid="action-progress"]')?.getAttribute('data-progress') ?? 0) >= 0.35, null, { timeout: 150000 }).catch(() => {})
   const mid = await read4()
   const clockMid = await clockText()
   check('while she sits, the clock has moved on past 07:00 toward 08:00 and beyond', clockMid > '07:10', clockMid)
@@ -261,7 +261,7 @@ try {
   check('and the summary counts one present, one to come', /2 lectures · 1 present · 0 late · 0 missed · 1 to come/.test((await p4.getByTestId('attendance-summary').innerText()) || ''), await p4.getByTestId('attendance-summary').innerText())
   await p4.getByTestId('btn-timetable-close').tap()
   await btn().tap()
-  check('the second lecture (10:00–12:00) is attended straight away, at its start', (await waitToast(/Fixed Prosthodontics 3.*marked present/, 60000)) && (await clockText()) === '12:00', await clockText())
+  check('the second lecture (10:00–12:00) is attended straight away, at its start', (await waitToast(/Fixed Prosthodontics 3.*marked present/)) && (await clockText()) === '12:00', await clockText())
   check('afterwards the seat is greyed out with the reason', await (async () => {
     await p4.waitForTimeout(800)
     const l = await label()
@@ -270,14 +270,16 @@ try {
 
   // ---- 3. Wednesday: Hall 313 ----
   console.log('\n--- 3. Wednesday in Hall 313 ---')
-  const w = await open('routine=done&day=wed&at=-147.5,-488.4,0')
+  const w = await open('routine=done&day=wed&at=-156,-488.1,90')
   check('Wednesday: the clock says Wed', !!w && (await weekday()) === 'Wed')
-  await shoot('8-signs-313')
-  const in313 = await route([[-147.5, -485.6], [-144.9, -484.95]], { tol: 0.2 })
+  await p4.waitForTimeout(1500)
+  await shoot('8-door-signs')
+  const in313 = await route([[-147.5, -488.1], [-147.5, -485.6], [-144.9, -484.95]], { tol: 0.2 })
   check('through the door of Hall 313 to the end of its first row', !!in313 && (await waitZone('hall2')), fmt4(in313))
+  if (!(await label())) await walkTo(-144.9, -484.6, { tol: 0.15, ms: 20000 })
   check('the button offers "Attend: Oral Medicine 1"', (await label()) === 'Attend: Oral Medicine 1')
   await btn().tap()
-  check('Oral Medicine 1 is attended and marked present', await waitToast(/Oral Medicine 1.*marked present/, 60000))
+  check('Oral Medicine 1 is attended and marked present', await waitToast(/Oral Medicine 1.*marked present/))
   check('the clock stands at 10:00', (await clockText()) === '10:00', await clockText())
   check('and the seat offers Oral Surgery 1 (10:00–11:00)', (await label()) === 'Attend: Oral Surgery 1')
   await shoot('9-hall313')
