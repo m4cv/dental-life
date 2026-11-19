@@ -1,6 +1,6 @@
 // Unit checks for the locomotion maths. Runs on plain Node (22.18+ strips TypeScript types).
 import {
-  RIG, WALK_SPEED, RUN_SPEED, createPose, solvePose, ankleHeight, advancePhase, stepRate, blinkAmount, gaitBlend,
+  RIG, WALK_SPEED, RUN_SPEED, createPose, solvePose, ankleHeight, advancePhase, stepRate, blinkAmount, gaitBlend, applyGesture, GESTURES,
 } from '../src/character/animations/pose.ts'
 
 let failures = 0
@@ -116,6 +116,38 @@ const flat = (p) => [
   const r = solvePose(createPose(), RUN_SPEED, Math.PI / 2, 0)
   console.log(`info  walk @π/2: thigh R ${(w.legR.thigh * 57.3).toFixed(0)}° knee L ${(w.legL.knee * 57.3).toFixed(0)}° bodyY ${(w.bodyY * 100).toFixed(1)} cm`)
   console.log(`info  run  @π/2: thigh R ${(r.legR.thigh * 57.3).toFixed(0)}° knee L ${(r.legL.knee * 57.3).toFixed(0)}° bodyY ${(r.bodyY * 100).toFixed(1)} cm flare ${r.skirtFlare.toFixed(2)}`)
+}
+
+// Gestures (Stage 4): hands-busy standing actions blended over the standing pose.
+{
+  const kinds = Object.keys(GESTURES)
+  check('there are six gestures: brush, mirror, dress, eat, pack, open', kinds.length === 6 && ['brush', 'mirror', 'dress', 'eat', 'pack', 'open'].every((k) => kinds.includes(k)))
+  const before = flat(solvePose(createPose(), 0, 0, 0))
+  check('weight 0 leaves the pose untouched', kinds.every((k) => flat(applyGesture(solvePose(createPose(), 0, 0, 0), k, 0, 1.3)).every((v, i) => v === before[i])))
+  let finite = true
+  let legsKept = true
+  let armsMoved = true
+  let tooFar = false
+  for (const k of kinds) {
+    for (let i = 0; i < 120; i++) {
+      const base = solvePose(createPose(), 0, 0, i * 0.05)
+      const legs = JSON.stringify([base.legL, base.legR, base.bodyY, base.hipsYaw])
+      const g = applyGesture(solvePose(createPose(), 0, 0, i * 0.05), k, 1, i * 0.05)
+      if (!flat(g).every(Number.isFinite)) finite = false
+      if (JSON.stringify([g.legL, g.legR, g.bodyY, g.hipsYaw]) !== legs) legsKept = false
+      if (Math.abs(g.armR.pitch - base.armR.pitch) < 0.05 && Math.abs(g.armR.elbow - base.armR.elbow) < 0.05) armsMoved = false
+      // arms stay within a sane range so nothing clips through the head or the body
+      if (Math.abs(g.armR.pitch) > 1.6 || Math.abs(g.armL.pitch) > 1.6 || g.armR.elbow > 2.3 || g.armL.elbow > 2.3 || g.armR.elbow < -0.1) tooFar = true
+    }
+  }
+  check('every gesture stays finite over time', finite)
+  check('gestures never touch the legs, the hips or the body height (she keeps standing)', legsKept)
+  check('every gesture visibly moves the right arm', armsMoved)
+  check('no gesture pushes an arm past a sane range', !tooFar)
+  const half = applyGesture(solvePose(createPose(), 0, 0, 0), 'brush', 0.5, 0)
+  const full = applyGesture(solvePose(createPose(), 0, 0, 0), 'brush', 1, 0)
+  const none = solvePose(createPose(), 0, 0, 0)
+  check('half weight lies between none and full', half.armR.pitch > Math.min(none.armR.pitch, full.armR.pitch) && half.armR.pitch < Math.max(none.armR.pitch, full.armR.pitch))
 }
 
 if (failures) {

@@ -4,14 +4,22 @@ import { useAppStore } from '@/state/useAppStore'
 import { CharacterPreviewPanel } from '@/ui/components/CharacterPreviewPanel'
 import { Diagnostics } from '@/ui/components/Diagnostics'
 import { RotatePrompt } from '@/ui/components/RotatePrompt'
+import { RoutineHud } from '@/ui/components/RoutineHud'
 import { CharacterShowcase } from '@/world/CharacterShowcase'
+import { HomeScene } from '@/world/HomeScene'
 import { PlayableScene } from '@/world/PlayableScene'
 
 /**
  * Add ?preview=1 to the address to open the Stage 2 character inspector (idle / walk / run and
  * four camera angles) instead of the playable scene.
  */
-const PREVIEW_MODE = new URLSearchParams(window.location.search).has('preview')
+const QUERY = new URLSearchParams(window.location.search)
+const PREVIEW_MODE = QUERY.has('preview')
+/**
+ * The home is the default scene since Stage 4. ?scene=courtyard opens the Stage 3 test set (the
+ * movement and camera tests run there); ?at=x,z,deg starts the home at that spot (for testing).
+ */
+const COURTYARD_MODE = QUERY.get('scene') === 'courtyard'
 
 /** Loaded lazily (see App.tsx) so the heavy 3D code is only fetched when a game starts. */
 export default function GameScreen() {
@@ -19,7 +27,7 @@ export default function GameScreen() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-sky-200">
-      <GameCanvas>{PREVIEW_MODE ? <CharacterShowcase /> : <PlayableScene />}</GameCanvas>
+      <GameCanvas>{PREVIEW_MODE ? <CharacterShowcase /> : COURTYARD_MODE ? <PlayableScene /> : <HomeScene />}</GameCanvas>
 
       {!PREVIEW_MODE && <TouchControls />}
 
@@ -34,6 +42,8 @@ export default function GameScreen() {
         </button>
         <Diagnostics />
       </div>
+
+      {!PREVIEW_MODE && !COURTYARD_MODE && <RoutineHud />}
 
       {!PREVIEW_MODE && <RotatePrompt />}
 

@@ -38,8 +38,8 @@ export interface CamRig {
   arm: number
 }
 
-export function createCam(yaw: number): CamRig {
-  return { yaw, pitch: CAM.pitchDefault, dist: CAM.distDefault, arm: CAM.distDefault }
+export function createCam(yaw: number, dist: number = CAM.distDefault): CamRig {
+  return { yaw, pitch: CAM.pitchDefault, dist, arm: dist }
 }
 
 /**
@@ -60,7 +60,7 @@ export function cameraOffset(yaw: number, pitch: number, dist: number): [number,
 
 /**
  * How far back along the arm the camera can sit: marches out from the pivot and stops short of
- * the first obstacle (or the ground). Always at least CAM.armMin.
+ * the first obstacle (or the ground). Always at least `armMin` (CAM.armMin outdoors).
  */
 export function safeDistance(
   pivot: readonly [number, number, number],
@@ -68,19 +68,63 @@ export function safeDistance(
   pitch: number,
   wanted: number,
   colliders: readonly Collider[],
+  /** Indoors: the camera stays this far below the ceiling (default: no ceiling). */
+  ceilingY: number = Infinity,
+  armMin: number = CAM.armMin,
+  /** How far the camera keeps from walls and furniture. */
+  margin: number = 0.25,
 ): number {
   const STEP = 0.12
-  let last = CAM.armMin
-  for (let d = CAM.armMin; d <= wanted + 1e-9; d += STEP) {
+  let last = armMin
+  for (let d = armMin; d <= wanted + 1e-9; d += STEP) {
     const o = cameraOffset(yaw, pitch, d)
     const x = pivot[0] + o[0]
     const y = pivot[1] + o[1]
     const z = pivot[2] + o[2]
-    if (y < CAM.floorY) return Math.max(last, CAM.armMin)
-    for (const c of colliders) if (pointBlocked(x, z, y, c, 0.25)) return Math.max(last, CAM.armMin)
+    if (y < CAM.floorY || y > ceilingY - 0.12) return Math.max(last, armMin)
+    for (const c of colliders) if (pointBlocked(x, z, y, c, margin)) return Math.max(last, armMin)
     last = d
   }
   return wanted
+}
+
+/**
+ * Indoors the rooms are small and the walls thin, so the camera cannot always sit far behind her
+ * (it would end up on the other side of a wall). It may come much closer than outdoors, and when
+ * the way back is short it climbs and looks down from above instead.
+ */
+export const CAM_INDOOR = {
+  armMin: 0.5,
+  margin: 0.18,
+  /** An arm this long (or the wanted distance, if shorter) is good enough: no need to climb. */
+  goodArm: 2.0,
+  pitchStep: 0.08,
+} as const
+
+/** The pitch to aim for indoors: the player's own pitch, raised only as far as needed for a decent arm. */
+export function indoorPitch(
+  pivot: readonly [number, number, number],
+  yaw: number,
+  pitch: number,
+  wanted: number,
+  colliders: readonly Collider[],
+  ceilingY: number,
+): number {
+  const target = Math.min(wanted, CAM_INDOOR.goodArm)
+  let bestArm = -1
+  let bestPitch = pitch
+  for (let p = pitch; p <= CAM.pitchMax + 1e-9; p += CAM_INDOOR.pitchStep) {
+    const arm = safeDistance(pivot, yaw, p, wanted, colliders, ceilingY, CAM_INDOOR.armMin, CAM_INDOOR.margin)
+    if (arm >= target - 1e-9) return p
+    // keep the pitch with the longest arm; when every pitch is boxed in, the steepest one wins
+    // (looking down from just above her head is the only view that cannot end up inside a wall)
+    const boxedIn = arm <= CAM_INDOOR.armMin + 1e-9 && bestArm <= CAM_INDOOR.armMin + 1e-9
+    if (arm > bestArm + 1e-9 || boxedIn) {
+      bestArm = arm
+      bestPitch = p
+    }
+  }
+  return bestPitch
 }
 
 /** Eases the arm: shortens at once (so it never sits inside a wall), lengthens smoothly. */

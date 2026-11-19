@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import type { Group, Material, Mesh } from 'three'
 import { getCharacterAssets } from './assets'
 import { COAT_HEM_Y, COAT_SPLIT_Y, EYE, HEAD, coatFrontZ, coatRing, skinZ } from './charShapes'
-import { RIG, SKIRT_FLARE_MAX, advancePhase, createPose, solvePose } from './animations/pose'
+import { RIG, SKIRT_FLARE_MAX, advancePhase, applyGesture, createPose, solvePose, type Gesture } from './animations/pose'
 
 type V3 = [number, number, number]
 
@@ -179,6 +179,8 @@ export interface PlayerCharacterProps {
   position?: V3
   /** Heading in radians about +y (0 faces +z). */
   rotationY?: number
+  /** A standing, hands-busy gesture (brushing, eating, …) while `current` is not null; blends in and out. */
+  gesture?: { current: Gesture | null }
 }
 
 /**
@@ -186,7 +188,7 @@ export interface PlayerCharacterProps {
  * Built from primitives and posed every frame by animations/pose.ts (no skinned mesh, no model file),
  * so there is nothing to download and the look can be tuned from code.
  */
-export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: PlayerCharacterProps) {
+export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0, gesture }: PlayerCharacterProps) {
   const { geo, mat } = getCharacterAssets()
 
   const bodyRef = useRef<Group>(null)
@@ -211,7 +213,7 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
   const placketMesh = useRef<Mesh | null>(null)
   const lowerButtonRefs = useRef<(Mesh | null)[]>([])
 
-  const state = useRef({ speed: 0, phase: 0, time: 0 })
+  const state = useRef({ speed: 0, phase: 0, time: 0, gestureW: 0, gestureKind: 'brush' as Gesture })
   const pose = useMemo(() => createPose(), [])
 
   const upperButtons = [1.165, 1.045]
@@ -242,6 +244,11 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
     st.phase = advancePhase(st.phase, st.speed, dt)
     st.time += dt
     solvePose(pose, st.speed, st.phase, st.time)
+    const wanted = gesture?.current ?? null
+    if (wanted) st.gestureKind = wanted
+    st.gestureW += ((wanted ? 1 : 0) - st.gestureW) * (1 - Math.exp(-9 * dt))
+    if (st.gestureW < 0.002) st.gestureW = 0
+    if (st.gestureW > 0) applyGesture(pose, st.gestureKind, st.gestureW, st.time)
 
     bodyRef.current?.position.set(pose.bodyX, pose.bodyY, 0)
     hipsRef.current?.rotation.set(0, pose.hipsYaw, 0)

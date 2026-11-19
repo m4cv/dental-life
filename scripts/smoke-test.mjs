@@ -431,6 +431,281 @@ check('Run is off in a new game', (await p3.getByTestId('btn-run').getAttribute(
 
 printJpeg('sheet3', (await contactSheet([menuShot, shotStart, shotWalk, shotRun, shotWall, shotLook, shotZoom, shotPortrait], 2, 560)).toString('base64'))
 
+// =============================================================================================
+// Stage 4: the home. Walk through the rooms with the on-screen stick, do the morning routine
+// step by step, then leave through the front door.
+// =============================================================================================
+console.log('\n--- Stage 4: the home (844×390) ---')
+const context4 = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
+const p4 = await context4.newPage()
+p4.on('console', (m) => {
+  if (m.type() === 'error') errors.push(`[stage4] ${m.text()}`)
+})
+p4.on('pageerror', (e) => errors.push(`[stage4] pageerror: ${e.message}`))
+const cdp4 = await context4.newCDPSession(p4)
+const touch4 = (type, points) =>
+  cdp4.send('Input.dispatchTouchEvent', {
+    type,
+    touchPoints: points.map(([x, y, id]) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 })),
+  })
+const read4 = async () => {
+  const el = p4.getByTestId('player-debug')
+  if ((await el.count()) === 0) return null
+  const text = await el.innerText()
+  const m = text.match(/x (-?[\d.]+) z (-?[\d.]+) · ([\d.]+) m\/s\s+cam (\d+)° ([\d.]+) m/)
+  return m ? { x: +m[1], z: +m[2], speed: +m[3], cam: +m[4], dist: +m[5], text } : null
+}
+const fmt4 = (d) => (d ? `x ${d.x} z ${d.z} cam ${d.cam}°` : 'no read-out')
+const openHome = async (query = '') => {
+  await p4.goto(`${URL}${query}`)
+  await p4.getByRole('heading', { name: 'Dental Life' }).waitFor()
+  await p4.getByRole('button', { name: 'New Game' }).tap()
+  await p4.locator('canvas').waitFor({ timeout: 30000 })
+  await p4.getByTestId('touch-controls').waitFor({ timeout: 15000 })
+  const t0 = Date.now()
+  let d = null
+  while (Date.now() - t0 < 60000) {
+    d = await read4()
+    if (d && (d.x !== 0 || d.z !== 0)) return d
+    await p4.waitForTimeout(300)
+  }
+  return d
+}
+
+// ---- the pilot: steers the on-screen stick (analog) toward a point, like a thumb would ----
+const STICK = { x: 110, y: 300, r: 51 }
+let held = false
+const stick4 = async (sx, sy) => {
+  if (!held) {
+    await touch4('touchStart', [[STICK.x, STICK.y, 1]])
+    held = true
+  }
+  await touch4('touchMove', [[STICK.x + sx * STICK.r, STICK.y - sy * STICK.r, 1]])
+}
+const letGo = async () => {
+  if (held) {
+    await touch4('touchEnd', [])
+    held = false
+  }
+}
+/** Pushes the stick toward (tx, tz) with strength m (0..1), given the camera heading from the read-out. */
+const steer = async (d, tx, tz, m) => {
+  const dx = tx - d.x
+  const dz = tz - d.z
+  const dist = Math.hypot(dx, dz) || 1
+  const yaw = (d.cam * Math.PI) / 180
+  const fx = Math.sin(yaw)
+  const fz = Math.cos(yaw)
+  await stick4(((dz * fx - dx * fz) / dist) * m, ((dx * fx + dz * fz) / dist) * m)
+}
+const walkTo = async (tx, tz, { tol = 0.25, slow = false, ms = 45000 } = {}) => {
+  const t0 = Date.now()
+  let d = null
+  while (Date.now() - t0 < ms) {
+    d = await read4()
+    if (!d) {
+      await p4.waitForTimeout(100)
+      continue
+    }
+    const dist = Math.hypot(tx - d.x, tz - d.z)
+    if (dist <= tol) {
+      await letGo()
+      return d
+    }
+    await steer(d, tx, tz, Math.min(slow ? 0.6 : 1, Math.max(0.4, dist / 0.9)))
+    await p4.waitForTimeout(90)
+  }
+  await letGo()
+  console.log(`info  walkTo(${tx}, ${tz}) gave up at ${fmt4(d)}`)
+  return null
+}
+/** Keeps pushing toward a point for `ms` (used to lean on a closed door). */
+const pushToward = async (tx, tz, ms) => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    const d = await read4()
+    if (d) await steer(d, tx, tz, 1)
+    await p4.waitForTimeout(90)
+  }
+  await letGo()
+}
+const route = async (points, opts) => {
+  let d = null
+  for (const [x, z, o] of points) {
+    d = await walkTo(x, z, { ...opts, ...o })
+    if (!d) return null
+  }
+  return d
+}
+
+// ---- reading the HUD ----
+const btn = () => p4.getByTestId('btn-interact')
+const buttonLabel = async () => {
+  try {
+    await btn().waitFor({ timeout: 4000 })
+    return (await btn().innerText()).trim()
+  } catch {
+    return null
+  }
+}
+const clock = async () => (await p4.getByTestId('clock').innerText()).replace(/[^\d:]/g, '')
+const waitDone = async (id, ms = 30000) => {
+  try {
+    await p4.locator(`[data-testid="routine-step-${id}"][data-done="true"]`).waitFor({ timeout: ms })
+    return true
+  } catch {
+    return false
+  }
+}
+const shots4 = {}
+/** Taps the Interact button at a spot and checks the whole action. */
+const doStep = async (id, expectLabel, expectClock, { lockTest = false } = {}) => {
+  const label = await buttonLabel()
+  check(`${id}: the button says "${expectLabel}" when she stands at the spot`, label === expectLabel, `${label}`)
+  if (label !== expectLabel) return false
+  check(`${id}: the button is enabled`, await btn().isEnabled())
+  if (lockTest) {
+    const ibox = await btn().boundingBox()
+    const runBox4 = await p4.getByTestId('btn-run').boundingBox()
+    const recBox4 = await p4.getByTestId('btn-recenter').boundingBox()
+    const joyBox4 = await p4.getByTestId('joystick').boundingBox()
+    check(
+      'the Interact button sits left of Run and Recenter, clear of the joystick, at least 44 px high',
+      !!ibox && ibox.height >= 44 && ibox.x + ibox.width <= runBox4.x && !overlap(ibox, runBox4) && !overlap(ibox, recBox4) && !overlap(ibox, joyBox4) && inside4(ibox),
+      JSON.stringify(ibox),
+    )
+    shots4.button = await p4.screenshot({ path: `${OUT}/s4-2-interact-button.png` })
+  }
+  await btn().tap()
+  let started = true
+  try {
+    await p4.getByTestId('action-progress').waitFor({ timeout: 5000 })
+  } catch {
+    started = false
+  }
+  check(`${id}: tapping it starts the action (progress bar shown)`, started)
+  check(`${id}: the button is hidden while she is busy`, (await p4.getByTestId('btn-interact').count()) === 0)
+  if (lockTest) {
+    // the stick is locked while she acts: leaning on it for a second must not move her
+    const spot = { mirror: [5.15, -5.55], dress: [4.5, -3.75], brush: [6.25, -7.7], eat: [4.95, -8.45], pack: [2.45, -8.45] }[id]
+    await stick4(0, -1)
+    await p4.waitForTimeout(1000)
+    await letGo()
+    const after = await read4()
+    check(`${id}: while she acts the stick is locked (pushing it for a second moves her nowhere)`, !!after && Math.hypot(after.x - spot[0], after.z - spot[1]) < 0.3, `${fmt4(after)} vs spot ${spot}`)
+    shots4.act = await p4.screenshot({ path: `${OUT}/s4-3-action.png` })
+  }
+  const done = await waitDone(id)
+  check(`${id}: the checklist ticks it off when the action finishes`, done)
+  if (!done) return false
+  check(`${id}: the clock moves on to ${expectClock}`, (await clock()) === expectClock, await clock())
+  check(`${id}: a short message confirms it`, (await p4.getByTestId('toast').count()) === 1)
+  try {
+    await btn().waitFor({ state: 'detached', timeout: 3000 })
+  } catch {
+    /* checked below */
+  }
+  check(`${id}: the button is gone once the step is done`, (await p4.getByTestId('btn-interact').count()) === 0)
+  return true
+}
+const inside4 = (r) => !!r && r.x >= 0 && r.y >= 0 && r.x + r.width <= W && r.y + r.height <= H
+
+// ---- start: the bedroom ----
+const spawn4 = await openHome()
+check('the home is the default scene: the routine checklist is on screen', await p4.getByTestId('routine-hud').isVisible())
+check('she starts in the bedroom (x 4.55, z -4.7) with the camera facing west', !!spawn4 && Math.abs(spawn4.x - 4.55) < 0.3 && Math.abs(spawn4.z + 4.7) < 0.3 && spawn4.cam === 270, fmt4(spawn4))
+check('no "turn your phone" prompt in landscape', (await p4.getByTestId('rotate-prompt').count()) === 0)
+check('the checklist has the five steps plus leaving, none ticked', (await p4.locator('[data-testid^="routine-step-"]').count()) === 6 && (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 0)
+check('the clock starts at 06:30', (await clock()) === '06:30', await clock())
+check('nothing to do at the bed: no Interact button', (await p4.getByTestId('btn-interact').count()) === 0)
+{
+  const hudBox = await p4.getByTestId('routine-hud').boundingBox()
+  const clockBox = await p4.getByTestId('clock').boundingBox()
+  const joy = await p4.getByTestId('joystick').boundingBox()
+  const diag = await p4.getByTestId('diagnostics').boundingBox()
+  const menu = await p4.getByRole('button', { name: 'Back to main menu' }).boundingBox()
+  check('checklist and clock are fully on screen', inside4(hudBox) && inside4(clockBox), JSON.stringify(hudBox))
+  check('the checklist does not cover the menu button, the clock, the read-out or the joystick', !!menu && !!diag && !!joy && !overlap(hudBox, menu) && !overlap(hudBox, clockBox) && !overlap(hudBox, diag) && !overlap(hudBox, joy))
+  check('the clock does not cover the menu button or the read-out', !overlap(clockBox, menu) && !overlap(clockBox, diag))
+}
+await p4.waitForTimeout(2500)
+shots4.bed = await p4.screenshot({ path: `${OUT}/s4-1-bedroom.png` })
+check('the bedroom renders something different from the courtyard', (await diffShare(shots4.bed, shotStart)) > 0.05)
+
+// ---- 1. the mirror, a few steps from the bed ----
+await walkTo(5.15, -5.35, { tol: 0.45, slow: true })
+await doStep('mirror', 'Check mirror', '06:36', { lockTest: true })
+
+// ---- 2. get dressed, beside the wardrobe ----
+await route([[4.5, -4.8, { tol: 0.35 }], [4.5, -3.95, { tol: 0.4, slow: true }]])
+await doStep('dress', 'Get dressed', '06:41')
+
+// ---- 3. through the bedroom door to the front door: it must stay shut until the routine is done ----
+const doorRoute = await route([[3.9, -4.9, { tol: 0.3 }], [3.0, -4.9, { tol: 0.3 }], [2.55, -4.5], [2.55, -2.3], [2.5, -1.15, { tol: 0.4 }]])
+check('she walks out of the bedroom through the doorway and down the living room to the front door', !!doorRoute && doorRoute.z > -1.6, fmt4(doorRoute))
+const doorLabel = await buttonLabel()
+check('at the front door the button says "Leave home" but is greyed out', doorLabel === 'Leave home' && (await btn().isDisabled()) && (await btn().getAttribute('data-spot')) === 'door', `${doorLabel}`)
+check('and it says why: finish the routine first (2 of 5)', /2 of 5/.test((await p4.getByTestId('interact-note').innerText().catch(() => '')) || ''))
+await p4.keyboard.press('e')
+await p4.waitForTimeout(700)
+check('pressing E does nothing while it is greyed out', (await p4.getByTestId('action-progress').count()) === 0 && !(await p4.getByTestId('routine-step-door').getAttribute('data-done').then((v) => v === 'true')))
+await pushToward(2.5, 1.2, 2800)
+const leaned = await read4()
+check('the shut front door stops her (she cannot walk through it)', !!leaned && leaned.z < -0.15, fmt4(leaned))
+shots4.door = await p4.screenshot({ path: `${OUT}/s4-4-front-door-shut.png` })
+
+// ---- 4. dining area: pack the notebook, have breakfast ----
+await route([[2.55, -2.4, { tol: 0.35 }], [2.55, -4.9, { tol: 0.35 }], [2.75, -6.1, { tol: 0.3 }], [2.7, -6.95, { tol: 0.3 }], [2.45, -7.2, { tol: 0.3 }], [2.45, -7.95, { tol: 0.4, slow: true }]])
+await doStep('pack', 'Pack notebook', '06:44')
+await route([[2.45, -7.1, { tol: 0.3 }], [4.95, -7.0, { tol: 0.3 }], [4.95, -7.95, { tol: 0.4, slow: true }]])
+await doStep('eat', 'Have breakfast', '06:56')
+
+// ---- 5. bathroom: brush teeth ----
+await route([[5.0, -7.95, { tol: 0.3 }], [5.9, -7.95, { tol: 0.4, slow: true }]])
+await doStep('brush', 'Brush teeth', '07:00')
+check('all five steps are ticked and the clock reads 07:00', (await p4.locator('[data-testid^="routine-step-"][data-done="true"]').count()) === 5 && (await clock()) === '07:00')
+check('leaving is still not ticked', (await p4.getByTestId('routine-step-door').getAttribute('data-done')) === 'false')
+
+// ---- 6. back to the front door, which now opens ----
+const backHome = await route([[5.0, -7.95, { tol: 0.3 }], [4.9, -7.0, { tol: 0.3 }], [2.75, -6.9, { tol: 0.3 }], [2.75, -6.0, { tol: 0.3 }], [2.55, -4.9, { tol: 0.35 }], [2.55, -2.3, { tol: 0.35 }], [2.5, -1.15, { tol: 0.4, slow: true }]])
+check('she walks all the way back through the house to the front door', !!backHome && backHome.z > -1.6, fmt4(backHome))
+const leaveLabel = await buttonLabel()
+check('after the routine the "Leave home" button is lit up and enabled', leaveLabel === 'Leave home' && (await btn().isEnabled()), `${leaveLabel}`)
+check('and the greyed-out note is gone', (await p4.getByTestId('interact-note').count()) === 0)
+await btn().tap()
+await p4.getByTestId('action-progress').waitFor({ timeout: 5000 }).catch(() => {})
+check('the door ticks off the checklist once it has opened', await waitDone('door'))
+check('and the clock stays at 07:00', (await clock()) === '07:00')
+await p4.waitForTimeout(1500)
+const out = await walkTo(2.5, 0.95, { tol: 0.3, ms: 25000 })
+check('with the door open she can step out onto the porch (z past the wall line)', !!out && out.z > 0.5 && out.z < 1.6, fmt4(out))
+await pushToward(2.5, 3.5, 2500)
+const porchEnd = await read4()
+check('the porch ends at the edge of the home area (the street comes in Stage 5)', !!porchEnd && porchEnd.z < 1.6 && porchEnd.z > 0.6, fmt4(porchEnd))
+await p4.waitForTimeout(800)
+shots4.porch = await p4.screenshot({ path: `${OUT}/s4-5-porch.png` })
+
+// ---- 7. a look into every room (spawned straight there with ?at=x,z,deg) ----
+const VIEWS = [
+  ['living room, looking at the front door', '?at=1.6,-1.0,0'],
+  ['living room, looking at the television wall', '?at=2.6,-4.6,40'],
+  ['dining area', '?at=3.7,-7.0,180'],
+  ['bedroom, bed and curtains', '?at=4.4,-4.2,90'],
+  ['dressing table and mirror', '?at=5.1,-5.5,180'],
+  ['bathroom (estimated)', '?at=5.95,-7.9,90'],
+]
+const viewShots = []
+for (const [name, query] of VIEWS) {
+  const at = await openHome(query)
+  const [qx, qz] = query.slice(4).split(',').map(Number)
+  check(`?at= puts her in the ${name}`, !!at && Math.abs(at.x - qx) < 0.3 && Math.abs(at.z - qz) < 0.3, fmt4(at))
+  await p4.waitForTimeout(2500)
+  viewShots.push(await p4.screenshot({ path: `${OUT}/s4-view-${viewShots.length + 1}.png` }))
+}
+check('the six room views all look different from each other', (await Promise.all(viewShots.slice(1).map((v, i) => diffShare(viewShots[i], v)))).every((x) => x > 0.04))
+
+printJpeg('sheet4', (await contactSheet([shots4.bed, shots4.button, shots4.act, shots4.door, shots4.porch, ...viewShots], 2, 560)).toString('base64'))
+
 
 check('no console errors / page errors', errors.length === 0, errors.join(' || '))
 

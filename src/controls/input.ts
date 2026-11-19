@@ -16,6 +16,8 @@ export const input = {
   zoom: 0,
   /** Set by the recenter button; the controller clears it. */
   recenter: false,
+  /** Set by the Interact button (or the E key); the controller clears it. */
+  interact: false,
 }
 
 export function resetInput(): void {
@@ -28,6 +30,7 @@ export function resetInput(): void {
   input.lookDY = 0
   input.zoom = 0
   input.recenter = false
+  input.interact = false
 }
 
 /** The joystick wins while it is being held; otherwise the keyboard. */

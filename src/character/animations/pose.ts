@@ -106,6 +106,57 @@ const smooth = (t: number) => {
   return c * c * (3 - 2 * c)
 }
 
+/** Standing, hands-busy actions of the morning routine (and opening a door). */
+export type Gesture = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack' | 'open'
+
+interface GestureShape {
+  /** Right and left arm: shoulder pitch, elbow flexion, abduction (rad). */
+  r: [number, number, number]
+  l: [number, number, number]
+  /** Torso and head pitch (rad, forward positive). */
+  torso: number
+  head: number
+  /** Elbow wobble amplitude (rad) and rate (Hz) for the right arm; the left arm wobbles gently. */
+  wobble: number
+  hz: number
+}
+
+export const GESTURES: Record<Gesture, GestureShape> = {
+  // brushing teeth: right hand at the mouth, quick small strokes
+  brush: { r: [1.15, 1.95, 0.12], l: [0.35, 0.7, 0.1], torso: 0.1, head: 0.12, wobble: 0.14, hz: 3.2 },
+  // checking the look in the mirror: right hand lifted to the hijab, slow
+  mirror: { r: [1.25, 1.7, 0.2], l: [0.15, 0.3, 0.06], torso: 0.02, head: 0.02, wobble: 0.06, hz: 0.5 },
+  // putting on / straightening the coat: both hands in front of the chest
+  dress: { r: [0.85, 1.35, 0.25], l: [0.85, 1.35, 0.25], torso: 0.04, head: 0.08, wobble: 0.1, hz: 1.1 },
+  // eating: right hand to the mouth, a slow bite rhythm, left hand holding the cup
+  eat: { r: [1.0, 1.85, 0.1], l: [0.5, 1.0, 0.1], torso: 0.1, head: 0.1, wobble: 0.3, hz: 0.8 },
+  // packing the bag: leaning toward the table, both hands forward and low
+  pack: { r: [0.8, 0.45, 0.1], l: [0.8, 0.45, 0.1], torso: 0.3, head: 0.18, wobble: 0.12, hz: 1.4 },
+  // opening a door: one arm forward
+  open: { r: [1.0, 0.25, 0.08], l: [0.1, 0.25, 0.05], torso: 0.05, head: 0, wobble: 0.05, hz: 1 },
+}
+
+/**
+ * Blend a standing gesture over the walking pose. `w` is 0 (none) … 1 (full); `time` is the clock.
+ * The legs and the body bob are left alone, so the character keeps standing on the ground.
+ */
+export function applyGesture(pose: Pose, gesture: Gesture, w: number, time: number): Pose {
+  const g = GESTURES[gesture]
+  const k = clamp(w, 0, 1)
+  if (k <= 0) return pose
+  const wob = g.wobble * Math.sin(time * g.hz * TAU)
+  const wobL = 0.35 * g.wobble * Math.sin(time * g.hz * TAU + 1.3)
+  pose.armR.pitch = lerp(pose.armR.pitch, g.r[0], k)
+  pose.armR.elbow = lerp(pose.armR.elbow, g.r[1] + wob, k)
+  pose.armR.abduct = lerp(pose.armR.abduct, g.r[2], k)
+  pose.armL.pitch = lerp(pose.armL.pitch, g.l[0], k)
+  pose.armL.elbow = lerp(pose.armL.elbow, g.l[1] + wobL, k)
+  pose.armL.abduct = lerp(pose.armL.abduct, g.l[2], k)
+  pose.torsoPitch = lerp(pose.torsoPitch, g.torso, k)
+  pose.headPitch = lerp(pose.headPitch, g.head, k)
+  return pose
+}
+
 /** Position on the idle(0) → walk(1) → run(2) scale for a speed in m/s. */
 export function gaitBlend(speed: number): number {
   const s = Math.max(0, speed)

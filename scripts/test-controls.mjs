@@ -3,7 +3,7 @@ import {
   ACCEL, DECEL, MAX_FRAME, PLAYER_RADIUS, STICK_DEADZONE, createPlayer, resolveCollisions, shapeStick, stepPlayer,
   stickToWorld, wrapAngle, pointBlocked,
 } from '../src/controls/movement.ts'
-import { CAM, applyLook, cameraOffset, createCam, easeArm, fovForAspect, safeDistance } from '../src/camera/followCamera.ts'
+import { CAM, CAM_INDOOR, applyLook, cameraOffset, createCam, easeArm, fovForAspect, indoorPitch, safeDistance } from '../src/camera/followCamera.ts'
 import { controlLayout, needsRotate } from '../src/controls/layout.ts'
 import { BENCH_X, BENCH_Z, BUILDINGS, COURTYARD_COLLIDERS, PALM, SPAWN, WORLD_BOUNDS } from '../src/world/courtyardLayout.ts'
 
@@ -211,6 +211,63 @@ check('dead-zone ignores tiny stick movement', shapeStick(0.05, 0.05).every((v) 
   const blocked = safeDistance(pivot, Math.PI, CAM.pitchDefault, CAM.distDefault, wall)
   check('open space: full distance', open === CAM.distDefault)
   check('a wall behind her shortens the arm', blocked < CAM.distDefault - 0.5 && blocked >= CAM.armMin, `${blocked.toFixed(2)} m`)
+  // indoors: a ceiling keeps the camera below it, however steeply it looks down or up
+  const high = safeDistance([0, CAM.pivotY, 0], Math.PI, 1.1, 6, [])
+  const lowRoof = safeDistance([0, CAM.pivotY, 0], Math.PI, 1.1, 6, [], 2.9)
+  check('without a ceiling the camera may climb high; with one at 2.9 m it stops short of it', high === 6 && lowRoof < 3 && lowRoof >= CAM.armMin, `${lowRoof.toFixed(2)} m`)
+  const roofOk = (() => {
+    for (let pitch = 0; pitch <= 1.15; pitch += 0.05) {
+      const arm = safeDistance([0, CAM.pivotY, 0], 1, pitch, 3.2, [], 2.9)
+      const o = cameraOffset(1, pitch, arm)
+      if (arm > CAM.armMin + 1e-9 && CAM.pivotY + o[1] > 2.9 - 0.12 + 1e-9) return false
+    }
+    return true
+  })()
+  check('at every pitch the camera ends below the ceiling (unless pinned at the minimum arm)', roofOk)
+  {
+  // indoors, with the real walls: wherever she stands and whichever way the camera points, the
+  // camera must end up inside the same room as her, below the ceiling and never inside furniture
+  const { HOME_COLLIDERS, HOME_BOUNDS, CEILING_Y, ROOMS, FRONT_DOOR_COLLIDER } = await import('../src/home/homeLayout.ts')
+  const cols = [...HOME_COLLIDERS, FRONT_DOOR_COLLIDER]
+  const roomAt = (x, z) => ROOMS.find((r) => x >= r.x0 - 0.1 && x <= r.x1 + 0.1 && z >= r.z0 - 0.1 && z <= r.z1 + 0.1)?.id ?? null
+  let bad = 0
+  let cases = 0
+  let minArm = 9
+  let climbs = 0
+  let doorway = 0
+  const why = { room: 0, wall: 0, ceiling: 0, arm: 0 }
+  for (const r of ROOMS) {
+    for (let x = r.x0 + 0.4; x <= r.x1 - 0.4; x += 0.35) {
+      for (let z = r.z0 + 0.4; z <= r.z1 - 0.4; z += 0.35) {
+        if (cols.some((c) => pointBlocked(x, z, 0.1, c, 0.28))) continue
+        const pivot = [x, CAM.pivotY, z]
+        for (let k = 0; k < 8; k++) {
+          const yaw = (k / 8) * Math.PI * 2
+          const pitch = indoorPitch(pivot, yaw, CAM.pitchDefault, 3.2, cols, CEILING_Y)
+          const arm = safeDistance(pivot, yaw, pitch, 3.2, cols, CEILING_Y, CAM_INDOOR.armMin, CAM_INDOOR.margin)
+          const o = cameraOffset(yaw, pitch, arm)
+          const cx = x + o[0]
+          const cz = z + o[2]
+          const cy = pivot[1] + o[1]
+          cases += 1
+          minArm = Math.min(minArm, arm)
+          if (pitch > CAM.pitchDefault + 0.01) climbs += 1
+          const sameRoom = roomAt(cx, cz) === r.id
+          const inWall = cols.some((c) => pointBlocked(cx, cz, cy, c, 0))
+          if (!sameRoom) why.room += 1
+          if (inWall) why.wall += 1
+          if (cy > CEILING_Y - 0.1) why.ceiling += 1
+          if (arm < CAM_INDOOR.armMin - 1e-9) why.arm += 1
+          if (inWall || cy > CEILING_Y - 0.1 || arm < CAM_INDOOR.armMin - 1e-9) bad += 1
+          else if (!sameRoom) doorway += 1
+        }
+      }
+    }
+  }
+  check(`indoors the camera never ends up behind a wall, inside furniture or above the ceiling (${cases} positions × headings)`, cases > 400 && bad === 0, `${bad} bad of ${cases} ${JSON.stringify(why)}, ${doorway} in a doorway, closest arm ${minArm.toFixed(2)} m, climbed in ${climbs}`)
+  void HOME_BOUNDS
+}
+check('a new camera can start closer indoors (createCam with a distance)', createCam(0, 3.2).dist === 3.2 && createCam(0).dist === CAM.distDefault)
   const low = [{ kind: 'box', x: 0, z: -7, hw: 5, hd: 0.5, height: 0.45 }]
   const over = safeDistance(pivot, Math.PI, 0.6, 4, low)
   check('the camera can rise over a low bench', over === 4, `${over}`)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useControlStore } from '@/state/useControlStore'
+import { usePromptStore } from '@/state/usePromptStore'
 import { useViewport } from '@/ui/useViewport'
 import { input, resetInput } from './input'
 import { controlLayout } from './layout'
@@ -9,7 +10,8 @@ import { controlLayout } from './layout'
  *  - left half of the screen: floating joystick (appears under the thumb, anywhere on the left)
  *  - right half: drag to look around, two fingers to pinch-zoom
  *  - buttons: Run (toggle) and Recenter camera
- * Desktop: WASD / arrows move, Shift runs, mouse drag looks, wheel zooms, C recenters.
+ * Interact: a button that appears next to Run when something can be done where she stands.
+ * Desktop: WASD / arrows move, Shift runs, mouse drag looks, wheel zooms, C recenters, E interacts.
  * Everything writes into the shared `input` object; nothing here re-renders while you play.
  */
 export function TouchControls() {
@@ -19,6 +21,8 @@ export function TouchControls() {
   const knobRef = useRef<HTMLDivElement>(null)
   const run = useControlStore((s) => s.run)
   const toggleRun = useControlStore((s) => s.toggleRun)
+  const prompt = usePromptStore((s) => s.prompt)
+  const busy = usePromptStore((s) => s.busy)
   const [hint, setHint] = useState(true)
   // Sizes follow the screen (see layout.ts): the game is meant to be played in landscape.
   const { w, h } = useViewport()
@@ -143,6 +147,10 @@ export function TouchControls() {
         input.recenter = true
         return
       }
+      if (e.code === 'KeyE') {
+        input.interact = true
+        return
+      }
       if (!KEYS.has(e.code)) return
       e.preventDefault()
       keys.add(e.code)
@@ -242,6 +250,37 @@ export function TouchControls() {
         >
           Left thumb: move · Right thumb: look · Pinch: zoom
         </p>
+      )}
+
+      {/* contextual action, left of the Run stack so the right thumb reaches it without covering the look area */}
+      {prompt && !busy && (
+        <div
+          className="pointer-events-none absolute flex flex-col items-end gap-1"
+          style={{ right: `calc(${edgeR} + 0.5rem + ${L.runSize}px + 1rem)`, bottom: `calc(${floor} + 0.5rem)` }}
+        >
+          {prompt.note && (
+            <p data-testid="interact-note" className="max-w-[16rem] rounded-xl bg-black/60 px-3 py-1.5 text-right text-xs text-white">
+              {prompt.note}
+            </p>
+          )}
+          <button
+            type="button"
+            data-touch-button
+            data-testid="btn-interact"
+            data-spot={prompt.id}
+            disabled={!prompt.enabled}
+            onClick={() => {
+              input.interact = true
+            }}
+            style={{ height: L.runSize, minWidth: L.runSize * 2 }}
+            className={
+              'pointer-events-auto rounded-full border px-5 text-sm font-bold ' +
+              (prompt.enabled ? 'border-amber-200 bg-amber-300 text-slate-900 shadow-lg active:bg-amber-200' : 'border-white/30 bg-black/35 text-white/60')
+            }
+          >
+            {prompt.label}
+          </button>
+        </div>
       )}
 
       {/* right thumb's corner: Run (toggle) with Recentre above it; both stay out of the look drag */}
