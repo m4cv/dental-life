@@ -336,7 +336,7 @@ export function PlayerCharacter({ speed, position = [0, 0, 0], rotationY = 0 }: 
         {/* ---------------- torso: coat, hijab drape, arms, head ---------------- */}
         <group ref={torsoRef} position={[0, RIG.waistY, 0]}>
           <group position={[0, -RIG.waistY, 0]}>
-            <mesh geometry={geo.coatTorso} material={mat.coat} castShadow receiveShadow />
+            <mesh geometry={geo.coatTorso} material={mat.coat} castShadow />
             <mesh geometry={geo.placketUp} material={mat.coatEdge} />
             <mesh geometry={geo.vNeck} material={mat.innerTop} />
             <mesh geometry={geo.lapelL} material={mat.lapel} />
