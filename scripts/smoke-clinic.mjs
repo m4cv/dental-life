@@ -176,6 +176,20 @@ const chips = async () => `${await chip('wash')}/${await chip('mask')}/${await c
 const note = () => text('interact-note')
 const hudText = () => text('class-hud')
 const hudPhase = () => attr('class-hud', 'data-phase')
+/** Presses the Interact button; when it is not there (at 1 FPS she can overshoot the spot) steps back onto the spot and tries again. */
+const press = async (x, z) => {
+  for (let k = 0; k < 4; k++) {
+    try {
+      await btn().tap({ timeout: 6000 })
+      return true
+    } catch (e) {
+      console.log(`info  the button could not be pressed at ${fmt4(await read4())} (${String(e.message).split('\n')[0]}); stepping onto ${x}, ${z}`)
+      await walkTo(x, z, { tol: 0.15, ms: 20000 })
+      await p4.waitForTimeout(600)
+    }
+  }
+  return false
+}
 /** Walks to a spot until the button shows (stepping closer once if it does not). */
 const toSpot = async (x, z, path = []) => {
   await route([...path, [x, z]], { tol: 0.2 })
@@ -239,18 +253,18 @@ try {
   const c0 = await clockText()
   const w = await toSpot(-185.8, -481.8, [[-184, -486]])
   check('at the sink the button says "Wash hands"', w === 'Wash hands' && (await btn().isEnabled()), `${w}`)
-  await btn().tap()
+  await press(-185.8, -481.8)
   await p4.getByTestId('action-progress').waitFor({ timeout: 8000 })
   await shoot('5-washing')
   check('washing: a done message with the checklist (1 of 3)', await waitToast(/Wash your hands — done\. 1 of 3 done/, 60000))
   check('the first chip is ticked and the clock moved on', (await chips()) === 'true/false/false' && (await clockText()) > c0, `${await chips()} ${c0} → ${await clockText()}`)
   const m = await toSpot(-188.4, -481.8)
   check('at the mask box the button says "Put on a mask"', m === 'Put on a mask' && (await btn().isEnabled()), `${m}`)
-  await btn().tap()
+  await press(-188.4, -481.8)
   check('the mask goes on (2 of 3)', await waitToast(/Put on a mask — done\. 2 of 3 done/, 60000))
   const g = await toSpot(-190.8, -481.8)
   check('at the glove box the button says "Put on gloves"', g === 'Put on gloves' && (await btn().isEnabled()), `${g}`)
-  await btn().tap()
+  await press(-190.8, -481.8)
   await p4.getByTestId('action-progress').waitFor({ timeout: 8000 }).catch(() => {})
   await shoot('6-gloves')
   check('the gloves go on: ready for the session', await waitToast(/Put on gloves — done\. Ready for the session/, 60000))
@@ -261,7 +275,7 @@ try {
   console.log('\n--- 4. a whole clinic session on the stool ---')
   const s = await toSpot(-186.3, -493.75, [[-184, -486], [-184, -493.75]])
   check('the stool now offers the session, enabled, with a note that she will wait for 08:00', s === 'Attend: Fixed Prosthodontics 3 & Removable Prosthodontics 3' && (await btn().isEnabled()) && /08:00/.test(await note()), `${s} · ${await note()}`)
-  await btn().tap()
+  await press(-186.3, -493.75)
   await p4.getByTestId('action-progress').waitFor({ timeout: 8000 })
   await p4.waitForFunction(() => Number(document.querySelector('[data-testid="action-progress"]')?.getAttribute('data-progress') ?? 0) >= 0.35, null, { timeout: 150000 }).catch(() => {})
   const mid = await read4()
@@ -287,7 +301,7 @@ try {
   check('Thursday: the clock says Thu, in the clinic, ready (prep=done)', !!t && (await weekday()) === 'Thu' && (await waitZone('clinic')) && (await chips()) === 'true/true/true', `${await weekday()} ${await chips()}`)
   const t1 = await toSpot(-186.3, -493.75)
   check('the stool offers Oral Surgery 1 (08:00–10:00), enabled', t1 === 'Attend: Oral Surgery 1' && (await btn().isEnabled()), `${t1}`)
-  await btn().tap()
+  await press(-186.3, -493.75)
   check('Oral Surgery 1 is attended and marked present', await waitToast(/Oral Surgery 1.*Clinic.*marked present/))
   check('the clock stands at 10:00', (await clockText()) === '10:00', await clockText())
   await p4.waitForTimeout(800)
