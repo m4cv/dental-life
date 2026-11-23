@@ -10,7 +10,7 @@ import {
   ROUTE_PAVING, ROUTE_STEPS, SHAAB, SHAAB_LAMPS, SHAAB_PALMS, SIDE_STREETS, UNI, UNI_BLOCKS, UNI_BOOTH, UNI_CANOPY_POLES, UNI_LAMPS, UNI_PALMS, UNI_PILLARS, UNI_STEPS, UNI_WALLS,
   WORLD_COLLIDERS, arrowDegrees, atUniversity, instructionAt, minutesFor, projectOnRoute, remainingFrom, routePoint, worldZoneAt,
 } from '../src/streets/routeLayout.ts'
-import { UNI_MAIN, UNI_MAIN_UPPER, UNI_VESTIBULE } from '../src/university/uniLayout.ts'
+import { CLINIC_BEHIND, UNI_MAIN, UNI_MAIN_UPPER, UNI_VESTIBULE } from '../src/university/uniLayout.ts'
 import { LAGGED, driveRoute } from './route-pilot.mjs'
 
 let failures = 0
@@ -160,7 +160,7 @@ check('the HUD distance counts down along the route: it is the whole route at th
 }
 
 // ---- zones and the clock -----------------------------------------------------------------------------------
-check('zones: the place chip names the neighbourhood, the roundabout, Al-Shaab Street, the university, its lobby and its courtyard', worldZoneAt(2.5, 0.15) === 'home' && worldZoneAt(20, 7.6) === 'lane' && worldZoneAt(79, -100) === 'boulevard' && worldZoneAt(79, -420) === 'junction' && worldZoneAt(-100, -420) === 'shaab' && worldZoneAt(-160, -450) === 'university' && worldZoneAt(50, -245) === 'lane' && Object.values(ZONE_NAMES).length === 13 && worldZoneAt(-160, -482) === 'lobby' && worldZoneAt(-160, -520) === 'courtyard')
+check('zones: the place chip names the neighbourhood, the roundabout, Al-Shaab Street, the university, its lobby, its courtyard and the clinic', worldZoneAt(2.5, 0.15) === 'home' && worldZoneAt(20, 7.6) === 'lane' && worldZoneAt(79, -100) === 'boulevard' && worldZoneAt(79, -420) === 'junction' && worldZoneAt(-100, -420) === 'shaab' && worldZoneAt(-160, -450) === 'university' && worldZoneAt(50, -245) === 'lane' && Object.values(ZONE_NAMES).length === 14 && worldZoneAt(-160, -482) === 'lobby' && worldZoneAt(-160, -520) === 'courtyard' && worldZoneAt(-190, -490) === 'clinic')
 check('arrival: inside the compound counts, the pavement outside the gate does not', atUniversity(-160, -440) && atUniversity(-190, -480) && !atUniversity(-160, -430) && !atUniversity(-160, -424) && !atUniversity(-100, -450))
 check('clock: nothing passes at home or in the yard, a game minute for 41.7 m elsewhere', minutesFor(10, 2.5, -3) === 0 && minutesFor(10, 4, -5) === 0 && Math.abs(minutesFor(41.7, 79, -100) - 1) < 0.01 && CLOCK_MIN_PER_M === 0.024)
 check('clock: the whole drive takes about 19 game minutes (arriving at about 07:19)', (() => { const m = ROUTE_LENGTH * CLOCK_MIN_PER_M; check.arrive = clock(7 * 60 + m); return m > 15 && m < 25 })(), `${f1(ROUTE_LENGTH * CLOCK_MIN_PER_M)} min, arrive ${check.arrive}`)
@@ -225,7 +225,7 @@ check('clock: the whole drive takes about 19 game minutes (arriving at about 07:
     ...Object.fromEntries(SIDE_STREETS.map((s) => [`the end of side street ${s.id}`, [s.side === 'W' ? s.rect.x0 + 0.8 : s.rect.x1 - 0.8, s.z]])),
   }
   for (const [name, p] of Object.entries(WANTED)) check(`reachable on foot from the porch: ${name}`, free(p[0], p[1]) && reach(p[0], p[1]), `${p[0]}, ${p[1]}`)
-  check('the inside of every route building is not reachable', ROUTE_LOTS.every((l) => !reach((l.rect.x0 + l.rect.x1) / 2, (l.rect.z0 + l.rect.z1) / 2)) && UNI_BLOCKS.every((b) => !reach((b.rect.x0 + b.rect.x1) / 2, (b.rect.z0 + b.rect.z1) / 2)))
+  check('the inside of every route building is not reachable', ROUTE_LOTS.every((l) => !reach((l.rect.x0 + l.rect.x1) / 2, (l.rect.z0 + l.rect.z1) / 2)) && UNI_BLOCKS.filter((b) => b.id !== 'wing-w').every((b) => !reach((b.rect.x0 + b.rect.x1) / 2, (b.rect.z0 + b.rect.z1) / 2)) && !reach((CLINIC_BEHIND.x0 + CLINIC_BEHIND.x1) / 2, (CLINIC_BEHIND.z0 + CLINIC_BEHIND.z1) / 2))
   const OUTSIDE = { 'behind the west rows': [20, -300], 'behind the east rows (beyond the world)': [123, -300], 'north of the roundabout': [79, -448], 'west of the university': [-215, -470], 'east of the university': [-100, -470], 'behind the north rows of Al-Shaab Street': [-20, -450], 'south of Al-Shaab Street': [-60, -400], 'the island': [79, -420] }
   for (const [name, p] of Object.entries(OUTSIDE)) check(`not reachable: ${name}`, !reach(p[0], p[1]))
   check('the walkable area never touches the edge of the world', (() => {

@@ -1,13 +1,14 @@
-// Attending lectures, as pure functions (no React, no three.js): which lecture a seat offers, how late she may come,
+// Attending lectures and (Stage 10) clinic sessions, as pure functions (no React, no three.js): which lecture a seat offers, how late she may come,
 // how the clock runs through the lecture and what is written in the attendance record.
 //
 // The rules (kept simple, all in this file):
-//  * she attends a lecture by sitting at her seat in its hall and pressing the button; the lecture then runs to its end
+//  * she attends a lecture by sitting at her seat in its hall and pressing the button (a clinic session: at her dental unit, once she
+//    has washed her hands and put on a mask and gloves, see clinic.ts; the same rules of time apply); the lecture then runs to its end
 //    with the clock moving on (she waits if it has not started yet);
 //  * she is "present" when she sits down up to 10 minutes after the start, "late" up to 30 minutes after it; later the
 //    door is closed and the lecture counts as missed;
 //  * a lecture whose end has passed without her attending is "absent" (nothing is stored for it: it is worked out from the clock).
-import { lecturesOn, sessionTitle, formatTime, type DayId, type GroupId, type LectureRoom, type Session, PLACE_ROOM, PLAYER_GROUP } from './timetable.ts'
+import { attendableOn, lecturesOn, sessionTitle, formatTime, type DayId, type GroupId, type LectureRoom, type Session, PLACE_ROOM, PLAYER_GROUP } from './timetable.ts'
 
 export type Attendance = 'present' | 'late'
 /** What is stored: the attendance of the lectures she has attended, by session id. */
@@ -64,6 +65,15 @@ export function nextLecture(day: DayId, now: number, record: AttendanceRecord, g
   return null
 }
 
+/** The next session of the day she can attend anywhere (a lecture or a clinic session), for the "next class" card; null when none is left. */
+export function nextSession(day: DayId, now: number, record: AttendanceRecord, group: GroupId = PLAYER_GROUP): Session | null {
+  for (const s of attendableOn(day, group)) {
+    const st = lectureState(s, now, record)
+    if (st === 'upcoming' || st === 'open') return s
+  }
+  return null
+}
+
 export interface SeatOffer {
   /** The button text. */
   label: string
@@ -104,6 +114,26 @@ export function dayCounts(day: DayId, now: number, record: AttendanceRecord, gro
   const c: DayCounts = { lectures: 0, present: 0, late: 0, absent: 0, pending: 0 }
   for (const s of lecturesOn(day, group)) {
     c.lectures++
+    const st = lectureState(s, now, record)
+    if (st === 'present') c.present++
+    else if (st === 'late') c.late++
+    else if (st === 'absent') c.absent++
+    else c.pending++
+  }
+  return c
+}
+
+export interface SessionCounts extends DayCounts {
+  /** All the sessions she can attend that day: lectures and clinic sessions. */
+  sessions: number
+}
+
+/** The attendance of a day's lectures and clinic sessions at `now` (the labs are not playable yet and are left out). */
+export function sessionCounts(day: DayId, now: number, record: AttendanceRecord, group: GroupId = PLAYER_GROUP): SessionCounts {
+  const c: SessionCounts = { lectures: 0, sessions: 0, present: 0, late: 0, absent: 0, pending: 0 }
+  for (const s of attendableOn(day, group)) {
+    c.sessions++
+    if (s.kind === 'lecture') c.lectures++
     const st = lectureState(s, now, record)
     if (st === 'present') c.present++
     else if (st === 'late') c.late++

@@ -323,7 +323,7 @@ export const STREET_COLLIDERS: Collider[] = [
 // Where she is: names for the HUD, and the indoor / outdoor switch for the camera and the light.
 // ---------------------------------------------------------------------------------------------
 
-export type ZoneId = 'home' | 'yard' | 'lane' | 'boulevard' | 'junction' | 'shaab' | 'university' | 'lobby' | 'corridor' | 'hall1' | 'hall2' | 'office' | 'courtyard'
+export type ZoneId = 'home' | 'yard' | 'lane' | 'boulevard' | 'junction' | 'shaab' | 'university' | 'lobby' | 'corridor' | 'hall1' | 'hall2' | 'office' | 'courtyard' | 'clinic'
 
 export const ZONE_NAMES: Record<ZoneId, string> = {
   home: 'At home',
@@ -339,6 +339,7 @@ export const ZONE_NAMES: Record<ZoneId, string> = {
   hall2: 'Hall 313',
   office: 'Student Affairs office',
   courtyard: 'University courtyard',
+  clinic: 'Dental clinic',
 }
 
 const inRect = (r: Rect, x: number, z: number) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1

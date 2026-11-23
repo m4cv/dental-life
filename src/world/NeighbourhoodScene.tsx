@@ -8,6 +8,7 @@ import { formatClock } from '@/home/routine'
 import { spawnFromQuery } from '@/home/spawn'
 import { dayFromQuery } from '@/academics/timetable'
 import { useAcademicStore } from '@/state/useAcademicStore'
+import { useClinicStore } from '@/state/useClinicStore'
 import { useRouteStore } from '@/state/useRouteStore'
 import { useRoutineStore } from '@/state/useRoutineStore'
 import { buildStreet } from '@/street/buildStreet'
@@ -54,7 +55,9 @@ const SUN_OUTDOORS = { offset: [20, 16, 8], intensity: 2.3 } as const
  * two lecture halls and an office, and out through the back door into the courtyard. Inside, the camera
  * stays under the ceiling and a light travels with her.
  *
- * Add ?routine=done to skip the morning routine (the front door starts open), ?at=x,z,deg to
+ * Stage 10: the dental clinic in the west wing's ground floor, through the double door at the west end of the corridor.
+ *
+ * Add ?routine=done to skip the morning routine (the front door starts open), ?prep=done to skip the clinic's wash, mask and gloves, ?at=x,z,deg to
  * start anywhere in the neighbourhood, ?car=x,z,deg to park the car somewhere else and ?drive=1 to
  * start in the driver's seat (all for testing and for looking around).
  */
@@ -77,6 +80,9 @@ export function NeighbourhoodScene() {
     // ?day=sat|sun|mon|tue|wed|thu picks the day without the menu (a test aid)
     const queryDay = dayFromQuery(window.location.search)
     if (queryDay) academic.setDay(queryDay)
+    // a new game: nothing done yet to get ready for the clinic (?prep=done skips it: a test aid)
+    useClinicStore.getState().reset()
+    if (new URLSearchParams(window.location.search).get('prep') === 'done') useClinicStore.getState().skip()
     if (new URLSearchParams(window.location.search).get('routine') === 'done') store.skipToDoor()
     return () => {
       home.dispose()

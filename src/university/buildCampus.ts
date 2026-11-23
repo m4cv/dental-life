@@ -6,10 +6,11 @@
 // whole campus costs a few dozen draw calls. All of it is stylised and ESTIMATED: see the note in uniLayout.ts.
 import { Group, Material, MeshStandardMaterial } from 'three'
 import { Batch, disposeGroup, type V3 } from '../home/sceneBuilder.ts'
+import type { Rect } from '../street/streetLayout.ts'
 import { cx, cz, std, sx, sz, tex } from '../street/buildStreet.ts'
 import { uniBayTexture } from '../streets/routeTextures.ts'
 import {
-  BUILDING_WALLS, CEILING_PANELS, CEIL_Y, DOORS, FLOOR_Y, FL, FURNITURE, HEDGE_T, KIOSK_H, UNI,
+  BUILDING_WALLS, CEILING_PANELS, CEIL_Y, CLINIC, CLINIC_FURNITURE, CLINIC_PASSAGE, CLINIC_WALLS, DENTAL_UNITS, DOORS, FLOOR_Y, FL, FURNITURE, HEDGE_T, KIOSK_H, STOOL_H, UNI,
   UNI_BLOCKS, UNI_COURT, UNI_COURT_PALM, UNI_ENTRANCE_TOP, UNI_KIOSKS, UNI_LAWNS, UNI_MAIN, UNI_MAIN_UPPER, UNI_PEOPLE, UNI_ROOMS, UNI_ROUND, UNI_VESTIBULE,
   chairCentres, roomById, wallPieces, type Furn, type Person, type UniWall, type WallPiece,
 } from './uniLayout.ts'
@@ -68,6 +69,21 @@ function campusMaterials() {
     signHall2: tex(signTexture('Hall 313', '#1f4e8c'), 0.6),
     signOffice: tex(signTexture('Student Affairs', '#2e6b4a'), 0.6),
     signCourt: tex(signTexture('Courtyard', '#7a4a1e', 'Cafeteria · benches'), 0.6),
+    signClinic: tex(signTexture('Dental Clinic', '#1f6a7a', 'Level 4 · clinical sessions'), 0.6),
+    signWash: tex(signTexture('Wash hands', '#1f4e8c'), 0.6),
+    signMask: tex(signTexture('Masks', '#2e6b4a'), 0.6),
+    signGloves: tex(signTexture('Gloves', '#1f4e8c'), 0.6),
+    signSteri: tex(signTexture('Sterilisation', '#7a3a3a'), 0.6),
+    // the clinic: upholstery, light metal, white counters, steel, basins, the dental lamps, and the boxes of masks and gloves
+    upholstery: std('#4f86b0', 0.65),
+    chairMetal: std('#d6dadf', 0.4, 0.35),
+    counterBody: std('#c5ced6', 0.6),
+    counterTop: std('#eef1f3', 0.35),
+    steel: std('#aab3ba', 0.3, 0.7),
+    basin: std('#8f9ca6', 0.25, 0.5),
+    lamp: new MeshStandardMaterial({ color: '#fffbe8', emissive: '#fff5cc', emissiveIntensity: 0.8, roughness: 0.5 }),
+    masksBox: std('#e6f1ee', 0.7),
+    glovesBox: std('#2f7fd1', 0.7),
     roofTank: std('#2a2d31', 0.5),
     roofLeg: std('#6b6b6e', 0.6, 0.4),
     looks: [
@@ -317,6 +333,10 @@ function inside(b: Batch, m: Mats): void {
   sign(m.signHall2, DOORS.hall2, sy, zc, Math.PI, 1.5, 0.38)
   sign(m.signOffice, DOORS.office, FLOOR_Y + 2.4 + 0.5, zc, Math.PI, 1.3, 0.33)
   sign(m.signCourt, DOORS.courtyard, FLOOR_Y + 3.25, UNI_MAIN.z0 + 0.4 + 0.01, 0, 2.4, 0.6)
+  // the clinic's double door at the west end of the corridor (Stage 10): a frame and the sign over it
+  for (const dz of [-0.8, 0.8]) b.box(m.woodDark, [0.1, 2.5, 0.07], [-181.55, FLOOR_Y + 1.25, DOORS.clinicZ + dz], undefined, false)
+  b.box(m.woodDark, [0.1, 0.07, 1.67], [-181.55, FLOOR_Y + 2.5, DOORS.clinicZ], undefined, false)
+  sign(m.signClinic, -181.6 + 0.01, FLOOR_Y + 2.5 + 0.5, DOORS.clinicZ, Math.PI / 2, 1.5, 0.375)
 
   // the emblem and the notice board in the lobby
   b.plane(m.emblem, 1.8, 1.8, [roomById('lobby').rect.x0 + 0.01, FLOOR_Y + 2.5, -482.4], face(Math.PI / 2), [1, 1])
@@ -339,6 +359,93 @@ function inside(b: Batch, m: Mats): void {
     b.sphere(m.leaf, r.r * 1.5, [r.x, FLOOR_Y + 0.5 + r.r * 1.5, r.z], 10, [1, 1.3, 1])
   }
   for (const p of UNI_PEOPLE) if (p.id === 'guard' || p.id === 'clerk') chair(b, m, p.x, p.z, p.heading)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The dental clinic (Stage 10)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The clinic is inside the west wing's solid facade box, so only its linings are drawn: the floor, the ceiling and a sheet on each
+ * inner face of the walls (and the doorway's passage), then the furniture. All stylised and ESTIMATED: see the note in uniLayout.ts.
+ */
+function clinicShell(b: Batch, m: Mats): void {
+  const c = CLINIC
+  b.plane(m.tile, sx(c), sz(c), [cx(c), FLOOR_Y + 0.003, cz(c)], FLAT, [sx(c) / 2, sz(c) / 2])
+  b.plane(m.ceiling, sx(c), sz(c), [cx(c), CEIL_Y, cz(c)], CEIL_FACE)
+  // the walls' inner faces: west, south, north, and the east wall in pieces round the doorway
+  skin(b, m.wallPaint, sz(c), FLOOR_Y, CEIL_Y, [c.x0 + 0.004, 0, cz(c)], Math.PI / 2, [1, 1])
+  skin(b, m.wallPaint, sx(c), FLOOR_Y, CEIL_Y, [cx(c), 0, c.z1 - 0.004], Math.PI, [1, 1])
+  skin(b, m.wallPaint, sx(c), FLOOR_Y, CEIL_Y, [cx(c), 0, c.z0 + 0.004], 0, [1, 1])
+  const east = CLINIC_WALLS.find((w) => w.id === 'clinic-east')
+  if (east) for (const p of wallPieces(east)) skin(b, m.wallPaint, sz(p.rect), Math.max(p.y0, FLOOR_Y), Math.min(p.y1, CEIL_Y), [c.x1 - 0.004, 0, cz(p.rect)], -Math.PI / 2, [1, 1])
+  // the passage through the two walls: floor, the underside of the lintel and the two sides
+  const ps = CLINIC_PASSAGE
+  const h = east ? east.openings[0].h : 2.5
+  b.plane(m.tile, sx(ps), sz(ps), [cx(ps), FLOOR_Y + 0.003, cz(ps)], FLAT, [sx(ps) / 2, sz(ps) / 2])
+  b.plane(m.wallPaint, sx(ps), sz(ps), [cx(ps), FLOOR_Y + h, cz(ps)], CEIL_FACE)
+  skin(b, m.wallPaint, sx(ps), FLOOR_Y, FLOOR_Y + h, [cx(ps), 0, ps.z0 + 0.004], 0, [1, 1])
+  skin(b, m.wallPaint, sx(ps), FLOOR_Y, FLOOR_Y + h, [cx(ps), 0, ps.z1 - 0.004], Math.PI, [1, 1])
+}
+
+/** A counter along a wall: a body and a slab on top. */
+function counter(b: Batch, m: Mats, r: Rect, h: number): void {
+  b.box(m.counterBody, [sx(r), h - 0.04, sz(r)], [cx(r), FLOOR_Y + (h - 0.04) / 2, cz(r)])
+  b.box(m.counterTop, [sx(r) + 0.02, 0.04, sz(r) + 0.02], [cx(r), FLOOR_Y + h - 0.02, cz(r)])
+}
+
+/** A dental unit: the patient chair lying along z with its head to the north, the tray of instruments, the lamp and the operator's stool. */
+function dentalUnit(b: Batch, m: Mats, u: (typeof DENTAL_UNITS)[number]): void {
+  const { x, z } = u
+  // the chair: a base and column, the seat, the back, the headrest and the leg rest
+  b.box(m.chairMetal, [0.5, 0.06, 0.7], [x, FLOOR_Y + 0.03, z + 0.3])
+  b.cyl(m.chairMetal, 0.08, 0.1, 0.42, [x, FLOOR_Y + 0.27, z + 0.3], 10)
+  b.box(m.upholstery, [0.6, 0.12, 0.55], [x, FLOOR_Y + 0.54, z + 0.55])
+  b.box(m.upholstery, [0.58, 0.1, 0.75], [x, FLOOR_Y + 0.62, z - 0.2])
+  b.box(m.upholstery, [0.3, 0.14, 0.2], [x, FLOOR_Y + 0.7, z - 0.45])
+  b.box(m.upholstery, [0.44, 0.08, 0.35], [x, FLOOR_Y + 0.46, z + 0.97])
+  // the tray on its arm, with three instruments lying on it
+  const t = u.tray
+  const tx = cx(t)
+  const tz = cz(t)
+  b.cyl(m.steel, 0.025, 0.025, 0.9, [tx, FLOOR_Y + 0.45, tz], 8)
+  b.box(m.steel, [sx(t), 0.04, sz(t)], [tx, FLOOR_Y + 0.93, tz])
+  for (const dx of [-0.1, 0, 0.1]) b.box(m.chairMetal, [0.025, 0.025, 0.2], [tx + dx, FLOOR_Y + 0.965, tz], undefined, false)
+  // the lamp: a rod from the ceiling and a bright head over the patient's mouth
+  b.cyl(m.steel, 0.02, 0.02, 1.5, [x, CEIL_Y - 0.75, z - 0.1], 6, undefined, false)
+  b.box(m.lamp, [0.4, 0.08, 0.28], [x, CEIL_Y - 1.55, z - 0.1], undefined, false)
+  // the stool: a round seat on a pole and a base
+  const s = u.stool
+  b.cyl(m.chair, 0.2, 0.2, 0.05, [s.x, FLOOR_Y + STOOL_H - 0.025, s.z], 12)
+  b.cyl(m.benchLeg, 0.03, 0.03, STOOL_H - 0.05, [s.x, FLOOR_Y + (STOOL_H - 0.05) / 2, s.z], 6, undefined, false)
+  b.cyl(m.benchLeg, 0.22, 0.22, 0.03, [s.x, FLOOR_Y + 0.015, s.z], 10, undefined, false)
+}
+
+function clinicRoom(b: Batch, m: Mats): void {
+  clinicShell(b, m)
+  for (const f of CLINIC_FURNITURE) counter(b, m, f.rect, f.h)
+  const sign = (mat: Material, x: number, y: number, z: number, w: number) => b.plane(mat, w, w / 4, [x, y, z], face(Math.PI), [1, 1])
+  const wallZ = CLINIC.z1 - 0.012
+  // the hand-wash counter: two basins with taps, the signs, and the boxes of masks and gloves on the wall
+  for (const x of [-185.8, -187.0]) {
+    b.box(m.basin, [0.46, 0.012, 0.36], [x, FLOOR_Y + 0.9, CLINIC.z1 - 0.3], undefined, false)
+    b.cyl(m.steel, 0.015, 0.015, 0.22, [x, FLOOR_Y + 1.01, CLINIC.z1 - 0.12], 6, undefined, false)
+    b.box(m.steel, [0.025, 0.025, 0.14], [x, FLOOR_Y + 1.11, CLINIC.z1 - 0.2], undefined, false)
+  }
+  sign(m.signWash, -186.4, FLOOR_Y + 1.7, wallZ, 1.0)
+  b.box(m.masksBox, [0.3, 0.22, 0.12], [-188.4, FLOOR_Y + 1.3, CLINIC.z1 - 0.07], undefined, false)
+  sign(m.signMask, -188.4, FLOOR_Y + 1.7, wallZ, 0.8)
+  b.box(m.glovesBox, [0.3, 0.22, 0.12], [-190.8, FLOOR_Y + 1.3, CLINIC.z1 - 0.07], undefined, false)
+  sign(m.signGloves, -190.8, FLOOR_Y + 1.7, wallZ, 0.8)
+  // the sterilising counter: two autoclaves and their sign
+  for (const x of [-196.3, -194.7]) {
+    b.box(m.steel, [0.55, 0.42, 0.45], [x, FLOOR_Y + 0.9 + 0.21, CLINIC.z1 - 0.3])
+    b.box(m.woodDark, [0.3, 0.2, 0.01], [x, FLOOR_Y + 0.9 + 0.22, CLINIC.z1 - 0.525], undefined, false)
+  }
+  sign(m.signSteri, -195.5, FLOOR_Y + 1.7, wallZ, 1.2)
+  // wall cabinets over the storage counter on the north wall
+  for (let x = -197.2; x < -184.4; x += 1.7) b.box(m.cabinet, [1.6, 0.7, 0.35], [x + 0.8, FLOOR_Y + 1.75, CLINIC.z0 + 0.19])
+  for (const u of DENTAL_UNITS) dentalUnit(b, m, u)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -449,7 +556,7 @@ function people(b: Batch, m: Mats): void {
 export function buildCampus(): Campus {
   const m = campusMaterials()
   const group = new Group()
-  for (const fill of [shell, inside, courtyard, people]) {
+  for (const fill of [shell, inside, clinicRoom, courtyard, people]) {
     const b = new Batch()
     fill(b, m)
     group.add(b.build())

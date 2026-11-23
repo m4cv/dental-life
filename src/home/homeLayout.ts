@@ -243,10 +243,14 @@ export const HOME_SPAWN = { x: 4.55, z: -4.7, heading: -Math.PI / 2 }
 export type StepId = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack'
 
 /** The seats of the lecture halls (Stage 9), where she attends a lecture: see university/uniLayout.ts. */
-export type SeatId = 'seat-hall1' | 'seat-hall2'
+export type HallSeatId = 'seat-hall1' | 'seat-hall2'
+/** A seat where she attends a session: a lecture hall's, or the stool at her dental unit in the clinic (Stage 10). */
+export type SeatId = HallSeatId | 'seat-clinic'
+/** The three things to do before a clinic session (Stage 10): wash your hands, put on a mask, put on gloves. */
+export type ClinicStepId = 'wash' | 'mask' | 'gloves'
 
 export interface Spot {
-  id: StepId | 'door' | SeatId
+  id: StepId | 'door' | SeatId | ClinicStepId
   /** Where she stands (and is gently moved to) while doing it. */
   x: number
   z: number

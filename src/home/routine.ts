@@ -1,6 +1,6 @@
 // The morning routine, as plain data and pure functions (no React, no three.js).
 import type { Gesture } from '../character/animations/pose.ts'
-import { SPOTS, type SeatId, type Spot, type StepId } from './homeLayout.ts'
+import { SPOTS, type ClinicStepId, type HallSeatId, type SeatId, type Spot, type StepId } from './homeLayout.ts'
 
 export interface RoutineStep {
   id: StepId
@@ -26,14 +26,24 @@ export const ROUTINE_STEPS: RoutineStep[] = [
 /** What opening the front door looks like. */
 export const DOOR_ACTION = { seconds: 1.6, gesture: 'open' as Gesture }
 
-/** True for the spots of the morning at home (a routine step or the front door), false for a lecture seat. */
+/** True for the spots of the morning at home (a routine step or the front door). */
 export function isHomeSpotId(id: Spot['id']): id is StepId | 'door' {
-  return id !== 'seat-hall1' && id !== 'seat-hall2'
+  return id === 'door' || ROUTINE_STEPS.some((s) => s.id === id)
+}
+
+/** True for a seat where a session is attended: a lecture hall's or the clinic stool. */
+export function isSeatId(id: Spot['id']): id is SeatId {
+  return id === 'seat-hall1' || id === 'seat-hall2' || id === 'seat-clinic'
 }
 
 /** True for the seat of a lecture hall. */
-export function isSeatId(id: Spot['id']): id is SeatId {
-  return !isHomeSpotId(id)
+export function isHallSeatId(id: Spot['id']): id is HallSeatId {
+  return id === 'seat-hall1' || id === 'seat-hall2'
+}
+
+/** True for the three things done before a clinic session. */
+export function isClinicStepId(id: Spot['id']): id is ClinicStepId {
+  return id === 'wash' || id === 'mask' || id === 'gloves'
 }
 
 /** How long the action at a spot lasts and which gesture it plays (the morning's spots only; seats are in academics/). */

@@ -138,12 +138,13 @@ const inn = (id: string, axis: 'x' | 'z', c: number, s0: number, s1: number, ope
 const door = (at: number, w = 1.4, h = 2.5): WallOpening => ({ at, w, h })
 
 /** The three clear-width numbers the tests care about: every doorway is at least a metre wide. */
-export const DOORS = { hall1a: -178.5, hall1b: -171.5, hall2: -147.5, office: -141, lobbyArch: -160, courtyard: -160, entrance: -160 }
+export const DOORS = { hall1a: -178.5, hall1b: -171.5, hall2: -147.5, office: -141, lobbyArch: -160, courtyard: -160, entrance: -160, /** the clinic door is in the west wall, so this is a z */ clinicZ: -488.1 }
 
 export const BUILDING_WALLS: UniWall[] = [
   ext('south', 'x', -478.2, -182, -138, [{ at: DOORS.entrance, w: 5, h: CEIL_H }]),
   ext('north', 'x', -489.8, -182, -138, [{ at: DOORS.courtyard, w: 3.2, h: 2.8 }]),
-  ext('west', 'z', -181.8, -490, -478, []),
+  // the west wall: at the corridor's end a double door leads into the dental clinic in the west wing (Stage 10)
+  ext('west', 'z', -181.8, -490, -478, [door(DOORS.clinicZ, 1.6)]),
   ext('east', 'z', -138.2, -490, -478, []),
   // the corridor wall: doors to the halls and the office, and a wide arch to the lobby
   inn('corridor', 'x', -486.5, -181.6, -138.4, [door(DOORS.hall1a), door(DOORS.hall1b), { at: DOORS.lobbyArch, w: 6, h: 3 }, door(DOORS.hall2), door(DOORS.office, 1.0, 2.4)]),
@@ -210,7 +211,7 @@ export const roomById = (id: RoomId): UniRoom => UNI_ROOMS.find((r) => r.id === 
 // Furniture, courtyard features and people
 // ---------------------------------------------------------------------------------------------
 
-export type FurnKind = 'deskrow' | 'lectern' | 'guarddesk' | 'bench' | 'cabinet' | 'officedesk' | 'table' | 'hedge'
+export type FurnKind = 'deskrow' | 'lectern' | 'guarddesk' | 'bench' | 'cabinet' | 'officedesk' | 'table' | 'hedge' | 'counter'
 export interface Furn {
   id: string
   kind: FurnKind
@@ -326,7 +327,7 @@ export interface Person {
   /** Which clothes and skin tone (an index into the builder's looks). */
   look: number
   /** Standing people are solid (a small circle); a seated person is part of the bench, chair or desk. */
-  where: 'lobby' | 'corridor' | 'hall1' | 'hall2' | 'office' | 'courtyard'
+  where: 'lobby' | 'corridor' | 'hall1' | 'hall2' | 'office' | 'courtyard' | 'clinic'
 }
 const P = (id: string, where: Person['where'], pose: Person['pose'], x: number, z: number, heading: number, look: number): Person => ({ id, where, pose, x, z, heading, look })
 const E = Math.PI / 2
@@ -352,9 +353,103 @@ export const UNI_PEOPLE: Person[] = [
   P('kiosk-b', 'courtyard', 'sit', -148.4, -518.9, N, 5),
   P('court-d', 'courtyard', 'stand', -163.5, -503.0, E, 2),
   P('court-e', 'courtyard', 'stand', -162.7, -503.3, W, 6),
+  // the clinic (Stage 10): the supervising doctor, two students at their units and one in the aisle
+  P('doctor', 'clinic', 'stand', -192.6, -487.6, E, 1),
+  P('cl-s1', 'clinic', 'sit', -194.9, -497.65, 0, 2),
+  P('cl-s2', 'clinic', 'sit', -190.6, -501.55, 0, 4),
+  P('cl-s3', 'clinic', 'stand', -188.9, -499.2, W, 6),
 ]
 export const PERSON_R = 0.3
 export const PERSON_H = 1.7
+
+// ---------------------------------------------------------------------------------------------
+// The dental clinic (Stage 10)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The dental clinic fills the south end of the west wing's ground floor: 15.2 m by 27 m between the faces of its walls. Its one
+ * door is a double door at the west end of the ground-floor corridor. ESTIMATED: there is no photograph of the real clinic yet, so
+ * the size and the arrangement (three columns of four dental units, the hand-wash and PPE counter by the door) are those of a
+ * typical teaching clinic, not a copy of it.
+ */
+export const CLINIC = R(-197.6, -182.4, -507.4, -480.4)
+/** The 80 cm passage through the wing's wall and the main building's wall, from the corridor into the clinic. */
+export const CLINIC_PASSAGE = R(-182.4, -181.6, DOORS.clinicZ - 0.8, DOORS.clinicZ + 0.8)
+/** The rest of the west wing, behind (north of) the clinic: still solid, with nothing inside. */
+export const CLINIC_BEHIND = R(-198, -182, -527, CLINIC.z0)
+/** The three upper floors of the wing over the clinic: the camera keeps out of them. */
+export const CLINIC_UPPER = { rect: R(-198, -182, CLINIC.z0, -480), y0: FL, y1: 4 * FL }
+
+const clinicWall = (id: string, axis: 'x' | 'z', c: number, s0: number, s1: number, openings: WallOpening[]): UniWall => ({
+  id,
+  axis,
+  c,
+  s0,
+  s1,
+  t: EXT_T,
+  base: FLOOR_Y,
+  top: CEIL_Y,
+  exterior: false,
+  openings,
+})
+/** The clinic's walls (the north side is the solid rest of the wing). Their outer faces are the wing's own facade. */
+export const CLINIC_WALLS: UniWall[] = [
+  clinicWall('clinic-west', 'z', -197.8, -507.4, -480, []),
+  clinicWall('clinic-south', 'x', -480.2, -198, -182, []),
+  clinicWall('clinic-east', 'z', -182.2, -507.4, -480, [door(DOORS.clinicZ, 1.6)]),
+]
+
+/** The dental units: three columns of four. The patient chair lies along z with its head to the north; the operator sits at its head. */
+export const UNIT_COLS = [-194.9, -190.6, -186.3]
+export const UNIT_ROWS = [-492.6, -496.5, -500.4, -504.3]
+export const CHAIR_H = 1.0
+export const TRAY_H = 0.95
+export const STOOL_H = 0.475
+export const STOOL_R = 0.22
+export interface DentalUnit {
+  id: string
+  /** The middle of the chair (x) and of the bay (z). */
+  x: number
+  z: number
+  /** The patient chair and the tray of instruments on its arm, on the west side of the head. */
+  chair: Rect
+  tray: Rect
+  /** The operator's stool, a little way north of the chair's head: she sits here facing south. */
+  stool: { x: number; z: number }
+  hers: boolean
+}
+const dentalUnit = (r: number, c: number): DentalUnit => {
+  const x = UNIT_COLS[c]
+  const z = UNIT_ROWS[r]
+  return {
+    id: `unit-r${r}-c${c}`,
+    x,
+    z,
+    chair: R(x - 0.35, x + 0.35, z - 0.55, z + 1.15),
+    tray: R(x - 1.15, x - 0.75, z - 0.5, z - 0.1),
+    stool: { x, z: z - 1.15 },
+    hers: r === 0 && c === UNIT_COLS.length - 1,
+  }
+}
+export const DENTAL_UNITS: DentalUnit[] = UNIT_ROWS.flatMap((_, r) => UNIT_COLS.map((__, c) => dentalUnit(r, c)))
+/** Hers: the unit next to the door, in the corner of the first column and row (the east aisle runs past it). */
+export const HER_UNIT: DentalUnit = DENTAL_UNITS.find((u) => u.hers) as DentalUnit
+/** Where she sits to attend a session: the stool of her unit, facing the patient chair to the south. */
+export const CLINIC_SEAT = { x: HER_UNIT.stool.x, z: HER_UNIT.stool.z, heading: 0 }
+
+/** Where she stands for each thing she does before a session: in front of the hand-wash counter, facing the south wall. */
+export const CLINIC_PREP = {
+  wash: { x: -185.8, z: -481.8, heading: 0 },
+  mask: { x: -188.4, z: -481.8, heading: 0 },
+  gloves: { x: -190.8, z: -481.8, heading: 0 },
+}
+
+/** Counters along the walls: the hand-wash counter and the sterilising counter on the south wall, storage on the north wall. */
+export const CLINIC_FURNITURE: Furn[] = [
+  furn('cl-counter-wash', 'counter', R(-192.4, -184.6, -481.0, -480.4), 0.9, 'S'),
+  furn('cl-counter-steri', 'counter', R(-197.6, -193.2, -481.0, -480.4), 0.9, 'S'),
+  furn('cl-counter-store', 'counter', R(-197.6, -184.0, -507.4, -506.8), 0.9, 'N'),
+]
 
 // ---------------------------------------------------------------------------------------------
 // Colliders
@@ -380,9 +475,24 @@ export function furnColliders(f: Furn): Collider[] {
 /** Seated people whose chair is not part of a desk block or a bench (the guard, the clerk, the stools at the kiosks): they are solid like the standing ones. */
 export const SEATED_ALONE: Person[] = UNI_PEOPLE.filter((p) => p.pose === 'sit' && !FURNITURE.some((f) => inRect(f.rect, p.x, p.z)))
 
+/** Everything solid in the clinic: its walls, the solid rest of the wing, the counters and the dental units (her stool is left free). */
+export const CLINIC_COLLIDERS: Collider[] = [
+  ...CLINIC_WALLS.flatMap(wallColliders),
+  box(CLINIC_BEHIND, UNI_BLOCKS.find((b) => b.id === 'wing-w')!.height + 1),
+  ...CLINIC_FURNITURE.flatMap(furnColliders),
+  ...DENTAL_UNITS.flatMap((u) => [
+    box(u.chair, FLOOR_Y + CHAIR_H),
+    box(u.tray, FLOOR_Y + TRAY_H),
+    // her stool is left free so she can sit on it; a stool with a student on it is blocked by the student
+    ...(u.hers || UNI_PEOPLE.some((p) => p.pose === 'sit' && Math.hypot(p.x - u.stool.x, p.z - u.stool.z) < 0.05) ? [] : [circle(u.stool.x, u.stool.z, STOOL_R, FLOOR_Y + STOOL_H)]),
+  ]),
+]
+
 /** Everything solid in the compound, for people and for the car. */
 export const UNI_COLLIDERS: Collider[] = [
-  ...UNI_BLOCKS.map((b) => box(b.rect, b.height + 1)),
+  // the west wing's ground floor is the clinic: its walls and furniture replace the wing's solid block
+  ...UNI_BLOCKS.filter((b) => b.id !== 'wing-w').map((b) => box(b.rect, b.height + 1)),
+  ...CLINIC_COLLIDERS,
   ...BUILDING_WALLS.flatMap(wallColliders),
   ...UNI_STEP_WALLS.map((r) => box(r, FLOOR_Y)),
   box(UNI_BOOTH, UNI_BOOTH_H),
@@ -400,6 +510,7 @@ export const UNI_COLLIDERS: Collider[] = [
 export const UNI_CAMERA_COLLIDERS: Collider[] = [
   { ...box(UNI_MAIN_UPPER.rect, UNI_MAIN_UPPER.y1 + 1), bottom: UNI_MAIN_UPPER.y0 },
   { ...box(UNI_ENTRANCE_TOP.rect, UNI_ENTRANCE_TOP.y1 + 1), bottom: UNI_ENTRANCE_TOP.y0 },
+  { ...box(CLINIC_UPPER.rect, CLINIC_UPPER.y1 + 1), bottom: CLINIC_UPPER.y0 },
 ]
 /** The steps are walkable for her, but a car must not climb them (and so must not reach the doorway). */
 export const UNI_CAR_COLLIDERS: Collider[] = [box(UNI_STEPS.rect, FLOOR_Y)]
@@ -413,7 +524,7 @@ export const UNI_CAR_COLLIDERS: Collider[] = [box(UNI_STEPS.rect, FLOOR_Y)]
  * and the courtyard stand on the 45 cm of the top tread. Continuous enough for a slow ease in the rig.
  */
 export function floorHeightAt(x: number, z: number): number {
-  if (inRect(UNI_MAIN, x, z) || inRect(UNI_VESTIBULE, x, z) || inRect(UNI_COURT, x, z)) return FLOOR_Y
+  if (inRect(UNI_MAIN, x, z) || inRect(UNI_VESTIBULE, x, z) || inRect(UNI_COURT, x, z) || inClinic(x, z)) return FLOOR_Y
   const s = UNI_STEPS.rect
   if (inRect(s, x, z)) {
     const len = (s.z1 - s.z0) / UNI_STEPS.treads
@@ -425,7 +536,12 @@ export function floorHeightAt(x: number, z: number): number {
 
 /** True while she is under the ground floor's ceiling (the rooms, the corridor and the doorway). */
 export function insideBuilding(x: number, z: number): boolean {
-  return inRect(UNI_MAIN, x, z) || inRect(UNI_VESTIBULE, x, z)
+  return inRect(UNI_MAIN, x, z) || inRect(UNI_VESTIBULE, x, z) || inClinic(x, z)
+}
+
+/** True inside the dental clinic (its floor and the passage from the corridor). */
+export function inClinic(x: number, z: number): boolean {
+  return inRect(CLINIC, x, z) || inRect(CLINIC_PASSAGE, x, z)
 }
 
 /** True once she has gone through the doorway into the lobby: the "entered the main building" moment. */
@@ -436,6 +552,7 @@ export function enteredBuilding(x: number, z: number): boolean {
 /** The place chip inside the compound's buildings and courtyard; null elsewhere (the forecourt stays 'university'). */
 export function campusZoneAt(x: number, z: number): ZoneId | null {
   if (inRect(UNI_VESTIBULE, x, z)) return 'lobby'
+  if (inClinic(x, z)) return 'clinic'
   if (inRect(UNI_COURT, x, z) && z < -490) return 'courtyard'
   if (!inRect(UNI_MAIN, x, z)) return null
   if (z < -486.5) return 'corridor'
@@ -455,4 +572,7 @@ export const CEILING_PANELS: { x: number; z: number; w: number; d: number }[] = 
   ...[-484, -480.5].map((z) => ({ x: -147.75, z, w: 2.6, d: 0.8 })),
   { x: -141, z: -483, w: 1.6, d: 0.8 },
   { x: -141, z: -480, w: 1.6, d: 0.8 },
+  // the clinic (Stage 10): a light over each dental unit, and three over the hand-wash end
+  ...UNIT_ROWS.flatMap((z) => UNIT_COLS.map((x) => ({ x, z: z + 0.2, w: 1.6, d: 0.7 }))),
+  ...[-194, -189, -184.5].map((x) => ({ x, z: -485, w: 2.4, d: 0.8 })),
 ]

@@ -9,7 +9,7 @@ import { ZONE_NAMES } from '../src/street/streetLayout.ts'
 import {
   BUILDING_WALLS, CEILING_PANELS, CEIL_H, CEIL_Y, DOORS, FLOOR_Y, FURNITURE, HALL1_BLOCKS, HALL2_BLOCKS, PERSON_R, ROW_DEPTH, ROW_Z0, UNI, UNI_BLOCKS,
   UNI_CAMERA_COLLIDERS, UNI_COLLIDERS, UNI_COURT, UNI_COURT_PALM, UNI_KIOSKS, UNI_LAWNS, UNI_MAIN, UNI_MAIN_UPPER, SEATED_ALONE, UNI_PEOPLE, UNI_ROOMS, UNI_ROUND, UNI_STEPS, UNI_STEP_WALLS,
-  UNI_VESTIBULE, FL, campusZoneAt, chairCentres, enteredBuilding, floorHeightAt, insideBuilding, roomById, wallPieces,
+  UNI_VESTIBULE, FL, CLINIC, campusZoneAt, chairCentres, enteredBuilding, floorHeightAt, insideBuilding, roomById, wallPieces,
 } from '../src/university/uniLayout.ts'
 
 let failures = 0
@@ -87,7 +87,7 @@ check('the chairs of a desk block fill it with one chair about every 60 cm', (()
   const c = chairCentres(-180.6, -176.4)
   return c.length === 7 && c.every((x) => x > -180.6 && x < -176.4) && Math.abs(c[1] - c[0] - 0.6) < 1e-9
 })())
-check('no ceiling light hangs outside the building or over the courtyard', CEILING_PANELS.every((p) => inRect(UNI_MAIN, p.x, p.z)))
+check('no ceiling light hangs outside the building (the main building or the clinic) or over the courtyard', CEILING_PANELS.every((p) => inRect(UNI_MAIN, p.x, p.z) || inRect(CLINIC, p.x, p.z)))
 
 // ---- the floor under her feet ----------------------------------------------------------------------------
 check('the forecourt is at 0, the treads at 15, 30 and 45 cm, the building and the courtyard at 45 cm', (() => {
@@ -122,7 +122,7 @@ check('the place name follows her: forecourt, doorway/lobby, corridor, lecture h
   return z(-160, -452) === 'university' && z(-160, -476) === 'lobby' && z(-160, -482) === 'lobby' && z(-160, -488) === 'corridor' && z(-175, -482) === 'hall1' && z(-148, -482) === 'hall2' && z(-141, -482) === 'office' && z(-160, -500) === 'courtyard'
 })())
 check('every campus zone has a name to show in the HUD', ['lobby', 'corridor', 'hall1', 'hall2', 'office', 'courtyard'].every((id) => typeof ZONE_NAMES[id] === 'string' && ZONE_NAMES[id].length > 3), ['lobby', 'hall1', 'courtyard'].map((id) => ZONE_NAMES[id]).join(' | '))
-check('outside the main building and the courtyard the campus has no zone of its own', campusZoneAt(-160, -452) === null && campusZoneAt(-190, -500) === null && campusZoneAt(-160, -540) === null)
+check('outside the main building and the courtyard the campus has no zone of its own', campusZoneAt(-160, -452) === null && campusZoneAt(-190, -515) === null && campusZoneAt(-160, -540) === null)
 
 // ---- walking: the colliders ----------------------------------------------------------------------------------
 const B = ROUTE_BOUNDS
@@ -191,7 +191,7 @@ const free = (x, z, r = PLAYER_RADIUS) => {
   }
   for (const [name, p] of Object.entries(WANTED)) check(`she can walk from the arrival spot to ${name}`, free(p[0], p[1]) && reach(p[0], p[1]), `${p[0]}, ${p[1]}`)
   const NOT = {
-    'inside the west wing': [-190, -505],
+    'inside the west wing, behind the clinic': [-190, -517],
     'inside the east wing': [-130, -505],
     'inside the back wing': [-160, -533],
     'inside the tower': [-148, -525],
@@ -270,9 +270,9 @@ check('the courtyard has two lawns inside hedges, benches along both wings, two 
 check('the lawns, the planter and the tables lie inside the courtyard and do not touch the path down the middle (x −164..−156)', UNI_LAWNS.every((l) => within(l, UNI_COURT) && (l.x1 < -164 || l.x0 > -156)) && UNI_COURT_PALM.x - UNI_COURT_PALM.planterR > -164 + 1 - EPS)
 
 // ---- people ------------------------------------------------------------------------------------------------------
-check('there are 18 people, with unique ids, spread over the lobby, the halls, the corridor, the office and the courtyard', UNI_PEOPLE.length === 18 && new Set(UNI_PEOPLE.map((p) => p.id)).size === 18 && ['lobby', 'corridor', 'hall1', 'hall2', 'office', 'courtyard'].every((w) => UNI_PEOPLE.some((p) => p.where === w)))
+check('there are 22 people, with unique ids, spread over the lobby, the halls, the corridor, the office, the courtyard and the clinic', UNI_PEOPLE.length === 22 && new Set(UNI_PEOPLE.map((p) => p.id)).size === 22 && ['lobby', 'corridor', 'hall1', 'hall2', 'office', 'courtyard', 'clinic'].every((w) => UNI_PEOPLE.some((p) => p.where === w)))
 check('each person stands or sits inside the place they belong to', (() => {
-  const room = (w) => (w === 'courtyard' ? UNI_COURT : roomById(w).rect)
+  const room = (w) => (w === 'courtyard' ? UNI_COURT : w === 'clinic' ? CLINIC : roomById(w).rect)
   const bad = UNI_PEOPLE.filter((p) => !inRect(room(p.where), p.x, p.z))
   return bad.length === 0 ? true : bad.map((p) => p.id).join(', ')
 })() === true)
@@ -301,7 +301,7 @@ check('seated people sit on a chair of their desk block or on a bench, a courtya
 })())
 
 // ---- the camera --------------------------------------------------------------------------------------------------------
-check('the upper floors only block the camera above the ceiling (4.2 m), the entrance above the doorway starts at the ceiling, and neither blocks the walkers', UNI_CAMERA_COLLIDERS.length === 2 && ROUTE_CAMERA_COLLIDERS.length === 2 && UNI_CAMERA_COLLIDERS[0].bottom === UNI_MAIN_UPPER.y0 && UNI_CAMERA_COLLIDERS[0].bottom >= CEIL_Y && UNI_CAMERA_COLLIDERS[1].bottom === CEIL_Y
+check('the upper floors only block the camera above the ceiling (4.2 m), the entrance above the doorway starts at the ceiling, and neither blocks the walkers', UNI_CAMERA_COLLIDERS.length === 3 && ROUTE_CAMERA_COLLIDERS.length === 3 && UNI_CAMERA_COLLIDERS[0].bottom === UNI_MAIN_UPPER.y0 && UNI_CAMERA_COLLIDERS[0].bottom >= CEIL_Y && UNI_CAMERA_COLLIDERS[1].bottom === CEIL_Y
   && !UNI_COLLIDERS.some((c) => c.kind === 'box' && Math.abs(c.x - cx(UNI_MAIN)) < EPS && Math.abs(c.z - cz(UNI_MAIN)) < EPS))
 
 // ---- the car -------------------------------------------------------------------------------------------------------------------

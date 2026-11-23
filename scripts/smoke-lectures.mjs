@@ -290,7 +290,8 @@ try {
   check('Sunday: the clock says Sun', !!s && (await weekday()) === 'Sun')
   check('the Grand Hall seat is greyed out: no lectures in this hall today', (await label()) === 'Take a seat' && !(await btn().isEnabled()) && /No lectures in this hall today/.test((await p4.getByTestId('interact-note').innerText().catch(() => '')) || ''))
   await p4.getByTestId('class-hud').waitFor({ timeout: 8000 }).catch(() => {})
-  check('the card says there are no more lectures today and that the clinic opens later', /No more lectures today/.test((await p4.getByTestId('class-hud').innerText().catch(() => '')) || ''))
+  const sunCard = ((await p4.getByTestId('class-hud').innerText().catch(() => '')) || '').replace(/\s+/g, ' ')
+  check('the card does not say "no lectures": since Stage 10 it points to the first clinic session (Endodontics 3, Clinic, 08:00)', /Endodontics 3/.test(sunCard) && /Clinic/.test(sunCard) && /08:00/.test(sunCard), sunCard)
   await shoot('10-sunday')
 } catch (e) {
   check('the Stage 9 walk finished without an exception', false, String(e.message).split('\n')[0])

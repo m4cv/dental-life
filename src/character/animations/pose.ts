@@ -106,8 +106,8 @@ const smooth = (t: number) => {
   return c * c * (3 - 2 * c)
 }
 
-/** Standing, hands-busy actions of the morning routine (and opening a door). */
-export type Gesture = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack' | 'open' | 'sit'
+/** Standing, hands-busy actions of the morning routine (and opening a door), the three of getting ready for the clinic (Stage 10), and sitting. */
+export type Gesture = 'brush' | 'mirror' | 'dress' | 'eat' | 'pack' | 'open' | 'wash' | 'mask' | 'gloves' | 'sit'
 
 interface GestureShape {
   /** Right and left arm: shoulder pitch, elbow flexion, abduction (rad). */
@@ -134,6 +134,12 @@ export const GESTURES: Record<Gesture, GestureShape> = {
   pack: { r: [0.8, 0.45, 0.1], l: [0.8, 0.45, 0.1], torso: 0.3, head: 0.18, wobble: 0.12, hz: 1.4 },
   // opening a door: one arm forward
   open: { r: [1.0, 0.25, 0.08], l: [0.1, 0.25, 0.05], torso: 0.05, head: 0, wobble: 0.05, hz: 1 },
+  // washing hands at the sink (Stage 10): both forearms forward over the basin, the hands rubbing together
+  wash: { r: [0.75, 1.15, 0.12], l: [0.75, 1.15, 0.12], torso: 0.14, head: 0.2, wobble: 0.3, hz: 2.4 },
+  // putting on a mask: both hands raised to the face, at the ears
+  mask: { r: [1.35, 1.9, 0.35], l: [1.35, 1.9, 0.35], torso: 0.02, head: 0.04, wobble: 0.06, hz: 0.9 },
+  // putting on gloves: both hands held out in front, the fingers working
+  gloves: { r: [0.85, 1.05, 0.15], l: [0.85, 1.05, 0.15], torso: 0.06, head: 0.14, wobble: 0.2, hz: 1.8 },
   // sitting at a lecture desk (Stage 9): both forearms resting forward on the desk, the right hand writing a little
   sit: { r: [0.55, 1.25, 0.1], l: [0.55, 1.25, 0.1], torso: 0.05, head: 0.04, wobble: 0.05, hz: 0.7 },
 }

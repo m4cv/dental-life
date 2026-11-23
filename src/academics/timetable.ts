@@ -151,6 +151,15 @@ export function sessionsFor(day: DayId, group: GroupId = PLAYER_GROUP): Session[
 /** Only the lectures of a day. */
 export const lecturesOn = (day: DayId, group: GroupId = PLAYER_GROUP): Session[] => sessionsFor(day, group).filter((s) => s.kind === 'lecture')
 
+/** Only the clinic sessions of a day that take place in the dental clinic (Stage 10). The labs (Phantom, Prosthodontic Lab) are not built yet. */
+export const clinicSessionsOn = (day: DayId, group: GroupId = PLAYER_GROUP): Session[] => sessionsFor(day, group).filter((s) => s.kind === 'clinic' && s.place === 'clinic')
+
+/** A session she can attend in the game: a lecture in a hall (Stage 9) or a clinic session in the dental clinic (Stage 10). */
+export const isAttendable = (s: Session): boolean => s.kind === 'lecture' || (s.kind === 'clinic' && s.place === 'clinic')
+
+/** Everything she can attend on a day (lectures and clinic sessions), in time order. */
+export const attendableOn = (day: DayId, group: GroupId = PLAYER_GROUP): Session[] => sessionsFor(day, group).filter(isAttendable)
+
 export function sessionTitle(s: Session): string {
   const names = s.subjects.map((id) => SUBJECT_NAMES[id]).join(' & ')
   return s.kind === 'lab' ? `${names} Lab` : names
