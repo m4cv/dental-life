@@ -544,9 +544,9 @@ export function inClinic(x: number, z: number): boolean {
   return inRect(CLINIC, x, z) || inRect(CLINIC_PASSAGE, x, z)
 }
 
-/** True once she has gone through the doorway into the lobby: the "entered the main building" moment. */
+/** True once she has gone through the doorway into the lobby: the "entered the main building" moment (the clinic counts too: it is only reached through the building, and a test start can begin in it). */
 export function enteredBuilding(x: number, z: number): boolean {
-  return inRect(UNI_MAIN, x, z) && z <= -478.6
+  return (inRect(UNI_MAIN, x, z) && z <= -478.6) || inClinic(x, z)
 }
 
 /** The place chip inside the compound's buildings and courtyard; null elsewhere (the forecourt stays 'university'). */

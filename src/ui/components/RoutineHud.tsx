@@ -82,7 +82,7 @@ export function RoutineHud({ showPlace = false }: { showPlace?: boolean }) {
         <div
           data-testid="action-progress"
           data-progress={busy.progress}
-          className="pointer-events-none absolute inset-x-0 mx-auto w-48 rounded-full bg-black/55 px-3 py-2 text-center text-xs text-white"
+          className="pointer-events-none absolute inset-x-0 mx-auto w-fit min-w-48 max-w-[60%] rounded-full bg-black/55 px-4 py-2 text-center text-xs text-white"
           style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 1rem) + 0.75rem)' }}
         >
           {busy.label}…
